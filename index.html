@@ -323,8 +323,9 @@
 
 <!-- PROJECTS SCREEN -->
 <div id="screen-projects" class="screen active">
-  <div class="projects-top">
-    Projects Workspace
+  <div class="projects-top" style="display:flex; justify-content:space-between; align-items:center;">
+    <span>Projects Workspace</span>
+    <button style="background-color: #0d6efd; border:none; color:white; padding:6px 15px; border-radius:4px; cursor:pointer;" onclick="createProject()">+ New Project</button>
   </div>
   <div class="projects-panel">
     <table class="projects-table">
@@ -383,7 +384,10 @@
 
 <div class="main-container">
   <div class="left-panel">
-    <div class="nav-section" onclick="showTreeManagement()" style="cursor:pointer">Modify Projects</div>
+    <div class="nav-section" style="display:flex; justify-content:space-between; align-items:center;">
+      <span onclick="showTreeManagement()" style="cursor:pointer">Modify Projects</span>
+      <button style="background-color: #0d6efd; border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;" onclick="addAssembly()">+ Add</button>
+    </div>
 
     <div class="tree" id="assembly-tree">
       <div style="padding:15px;color:#666;font-size:12px;">Loading tree...</div>
@@ -467,12 +471,18 @@ document.addEventListener("DOMContentLoaded", () => {
   gridDiv.addEventListener('paste', handleCustomPaste);
 
   // Load initial Data
-  loadProjects();
+  ctx.projectId = localStorage.getItem("projectId") || '';
+  if (ctx.projectId) {
+    showWorkspace(ctx.projectId);
+  } else {
+    loadProjects();
+  }
 });
 
 function showProjects() {
   document.getElementById('screen-workspace').classList.remove('active');
   document.getElementById('screen-projects').classList.add('active');
+  localStorage.removeItem("projectId");
 }
 
 function showWorkspace(projectId) {
@@ -480,6 +490,7 @@ function showWorkspace(projectId) {
   document.getElementById('screen-workspace').classList.add('active');
   document.getElementById('input-project').value = projectId;
   ctx.projectId = projectId;
+  localStorage.setItem("projectId", projectId);
   
   loadTree(projectId);
 }
@@ -794,7 +805,7 @@ function handlePlanningUpload(event) {
     const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
     if (json.length === 0) return;
 
-    if (!confirm("Overwrite existing Planning data? This will replace all assemblies for this project.")) {
+    if (!confirm("This will DELETE all planning for this project. Continue?")) {
       showStatus("Upload cancelled", 2000);
       return;
     }
@@ -1037,6 +1048,131 @@ function handleCustomPaste(e) {
   gridApi.forEachNode((node, index) => {
     node.data._excel_row_index = index + 1;
   });
+}
+
+// --- UI Mutation Capabilities ---
+
+async function createProject() {
+  const name = prompt("Project Name");
+  if (!name) return;
+
+  const code = prompt("Project Code (e.g. 2533)");
+  if (!code) return;
+
+  const id = code + "_" + Date.now();
+
+  showStatus("Creating project...");
+  const { error } = await sb.from('projects').insert([{
+    id: id,
+    project_code: code,
+    name: name,
+    plan_status: 'Checked In',
+    state: 'In Process'
+  }]);
+
+  if (!error) {
+    await createBaseStructure(id);
+    alert("Project created and base structure initialized");
+    loadProjects();
+  } else {
+    alert("Error creating project: " + error.message);
+  }
+}
+
+async function createBaseStructure(projectId) {
+  const phases = ["Engineering", "Ordering & Manufacturing", "Assembly", "Dispatch"];
+  const categories = ["0", "1", "2", "3/4", "5"];
+  let sort = 1;
+  const rows = [];
+
+  categories.forEach(cat => {
+    phases.forEach(phase => {
+      rows.push({
+        project_id: projectId,
+        type: "TASK",
+        category: cat,
+        phase: phase,
+        name: `Category ${cat} - ${phase}`,
+        task_id: null,
+        sort_order: sort++
+      });
+    });
+  });
+
+  await sb.from('assemblies').insert(rows);
+}
+
+async function addAssembly() {
+  const name = prompt("Assembly Name");
+  if (!name) return;
+
+  const taskId = prompt("Task ID (e.g. 51)");
+  const category = prompt("Category (0-5)");
+  if (!["0","1","2","3/4","5"].includes(category)) {
+    alert("Invalid category");
+    return;
+  }
+  
+  let phase = prompt("Phase (e.g. Ordering & Manufacturing)", "Ordering & Manufacturing");
+  if (!phase) phase = "Ordering & Manufacturing";
+
+  const projectId = ctx.projectId;
+
+  showStatus("Adding assembly...");
+
+  const { data } = await sb
+    .from('assemblies')
+    .select('internal_id')
+    .eq('project_id', projectId)
+    .eq('type', 'SUBTASK')
+    .order('internal_id', { ascending: false })
+    .limit(1);
+
+  let nextId = 1;
+  if (data && data.length > 0) {
+    const last = data[0].internal_id.split('.')[0];
+    if (!isNaN(parseInt(last))) {
+      nextId = parseInt(last) + 1;
+    }
+  }
+  const baseId = nextId.toString();
+  
+  // SUBTASK
+  await sb.from('assemblies').insert([{
+    project_id: projectId,
+    internal_id: baseId + ".1",
+    task_id: taskId,
+    name: name,
+    type: "SUBTASK",
+    category: category,
+    phase: phase,
+    sort_order: Date.now()
+  }]);
+
+  // STEPS
+  await sb.from('assemblies').insert([
+    {
+      project_id: projectId,
+      internal_id: baseId + ".1.1",
+      task_id: taskId,
+      name: "Release of PO",
+      type: "step",
+      category: category,
+      phase: phase
+    },
+    {
+      project_id: projectId,
+      internal_id: baseId + ".1.2",
+      task_id: taskId,
+      name: "Ready for Assembly",
+      type: "step",
+      category: category,
+      phase: phase
+    }
+  ]);
+
+  showStatus("Assembly added");
+  loadTree(projectId);
 }
 </script>
 </body>
