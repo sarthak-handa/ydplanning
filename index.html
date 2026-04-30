@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CCPM + BOM System Replica</title>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<!-- SheetJS -->
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- AG Grid -->
+<script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.noStyle.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css">
+
+<style>
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: #ffffff;
+    color: #333;
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    gap: 15px;
+    font-size: 14px;
+  }
+
+  .top-bar .group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .top-bar input[type="text"] {
+    padding: 6px 10px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 120px;
+  }
+
+  .top-bar button {
+    padding: 6px 15px;
+    background: #0d6efd;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+  }
+
+  .top-bar button:hover {
+    background: #0b5ed7;
+  }
+
+  .top-bar input[type="file"] {
+    display: none;
+  }
+
+  .main-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  .left-panel {
+    width: 280px;
+    background: #fdfdfd;
+    border-right: 1px solid #dee2e6;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .left-panel h3 {
+    margin: 0;
+    padding: 15px;
+    font-size: 14px;
+    background: #f1f3f5;
+    border-bottom: 1px solid #dee2e6;
+  }
+
+  .assembly-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .assembly-item:hover {
+    background: #f8f9fa;
+  }
+
+  .assembly-item.active {
+    background: #e7f1ff;
+    border-left: 3px solid #0d6efd;
+  }
+
+  .assembly-name {
+    font-weight: 600;
+    font-size: 13px;
+  }
+
+  .assembly-meta {
+    font-size: 11px;
+    color: #666;
+  }
+
+  .main-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 10px 20px;
+    border-bottom: 1px solid #dee2e6;
+    background: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .panel-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  #myGrid {
+    flex: 1;
+    width: 100%;
+  }
+
+  .status-text {
+    font-size: 12px;
+    color: #198754;
+    font-weight: 500;
+  }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="group">
+    <label>Project ID:</label>
+    <input type="text" id="input-project" value="2533">
+  </div>
+  <div class="group">
+    <label>Task ID:</label>
+    <input type="text" id="input-task" value="51">
+  </div>
+  <div class="group">
+    <label>Assembly ID:</label>
+    <input type="text" id="input-assembly" value="1">
+  </div>
+  
+  <div style="flex:1;"></div>
+  
+  <span id="save-status" class="status-text"></span>
+
+  <button onclick="document.getElementById('upload-excel').click()">Upload BOM Excel</button>
+  <input type="file" id="upload-excel" accept=".xlsx, .xls" onchange="handleUpload(event)">
+  
+  <button onclick="downloadExcel()">Download BOM Excel</button>
+</div>
+
+<div class="main-container">
+  <div class="left-panel" id="assembly-list">
+    <h3>Assemblies (Project View)</h3>
+    <!-- Hardcoded list as requested for now -->
+    <div class="assembly-item active" onclick="selectAssembly('2533', '51', '1', 'HOLD DOWN ROLL ASSY', this)">
+      <div class="assembly-name">HOLD DOWN ROLL ASSY</div>
+      <div class="assembly-meta">Category: 2 | Phase: O&M | Task: 51</div>
+    </div>
+    <div class="assembly-item" onclick="selectAssembly('2533', '10', '10', 'ENTRY COIL SADDLE', this)">
+      <div class="assembly-name">ENTRY COIL SADDLE</div>
+      <div class="assembly-meta">Category: 1 | Phase: O&M | Task: 10</div>
+    </div>
+    <div class="assembly-item" onclick="selectAssembly('2533', '46', '3', 'PUSHER PLATE ASSY', this)">
+      <div class="assembly-name">PUSHER PLATE ASSY</div>
+      <div class="assembly-meta">Category: 2 | Phase: O&M | Task: 46</div>
+    </div>
+  </div>
+
+  <div class="main-panel">
+    <div class="panel-header">
+      <div class="panel-title" id="bom-title">BOM View - HOLD DOWN ROLL ASSY</div>
+    </div>
+    <div id="myGrid" class="ag-theme-alpine"></div>
+  </div>
+</div>
+
+<script>
+// --- Configuration ---
+const SUPABASE_URL = "https://vidoqysothqtrgvkzouh.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpZG9xeXNvdGhxdHJndmt6b3VoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjEwMTksImV4cCI6MjA5MzA5NzAxOX0.-WSt4v067PAUqc3Z99wESocy5KExO5-mLg6DafjDD8s";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// Current Context
+let ctx = {
+  projectId: '2533',
+  taskId: '51',
+  assemblyId: '1'
+};
+
+// Exact column headers from Excel
+const EXCEL_COLS = [
+  "Sr No", "Joblist", "Dwng No", "Quantity", "Material", "Wt", 
+  "Assembly Name", "Vendor Name", "PO Number", "Unit Price", "Total Price", 
+  "Release PO Status", "Release PO Date", "Ready Assembly Status", "Ready Assembly Date"
+];
+
+// Map Excel columns to Supabase columns
+const DB_MAP = {
+  "Sr No": "sr_no",
+  "Joblist": "joblist",
+  "Dwng No": "dwg_no",
+  "Quantity": "quantity",
+  "Material": "material",
+  "Wt": "weight",
+  "Assembly Name": "assembly_name",
+  "Vendor Name": "vendor_name",
+  "PO Number": "po_number",
+  "Unit Price": "unit_price",
+  "Total Price": "total_price",
+  "Release PO Status": "release_po_status",
+  "Release PO Date": "release_po_date",
+  "Ready Assembly Status": "ready_asm_status",
+  "Ready Assembly Date": "ready_asm_date"
+};
+
+const REV_MAP = Object.fromEntries(Object.entries(DB_MAP).map(([k, v]) => [v, k]));
+
+// AG Grid Setup
+let gridApi;
+
+const columnDefs = EXCEL_COLS.map(colName => {
+  return {
+    headerName: colName,
+    field: colName,
+    editable: true,
+    width: 150
+  };
+});
+
+const gridOptions = {
+  columnDefs: columnDefs,
+  defaultColDef: {
+    resizable: true,
+    sortable: true,
+    filter: true
+  },
+  rowData: [],
+  onCellValueChanged: async (event) => {
+    await saveRow(event.data);
+  },
+  stopEditingWhenCellsLoseFocus: true,
+  enableRangeSelection: true // Basic clipboard support
+};
+
+// Initialize Grid
+document.addEventListener("DOMContentLoaded", () => {
+  const gridDiv = document.querySelector('#myGrid');
+  gridApi = agGrid.createGrid(gridDiv, gridOptions);
+  
+  // Attach custom paste handler
+  gridDiv.addEventListener('paste', handleCustomPaste);
+
+  // Load initial BOM
+  loadBomData();
+});
+
+function selectAssembly(projectId, taskId, assemblyId, name, element) {
+  // Update UI
+  document.querySelectorAll('.assembly-item').forEach(el => el.classList.remove('active'));
+  element.classList.add('active');
+  document.getElementById('bom-title').innerText = `BOM View - ${name}`;
+  
+  document.getElementById('input-project').value = projectId;
+  document.getElementById('input-task').value = taskId;
+  document.getElementById('input-assembly').value = assemblyId;
+
+  // Update Context
+  ctx.projectId = projectId;
+  ctx.taskId = taskId;
+  ctx.assemblyId = assemblyId;
+
+  loadBomData();
+}
+
+function showStatus(text, duration = 3000) {
+  const el = document.getElementById('save-status');
+  el.innerText = text;
+  if (duration) {
+    setTimeout(() => { if (el.innerText === text) el.innerText = ''; }, duration);
+  }
+}
+
+// --- Data Operations ---
+
+async function loadBomData() {
+  showStatus("Loading...");
+  gridApi.setGridOption('rowData', []);
+  
+  const { data, error } = await sb
+    .from('bom_items')
+    .select('*')
+    .eq('project_id', ctx.projectId)
+    .eq('assembly_task_id', ctx.taskId)
+    .order('excel_row_index', { ascending: true });
+
+  if (error) {
+    console.error("Error loading BOM:", error);
+    showStatus("Error loading data", 5000);
+    return;
+  }
+
+  // Convert DB rows to Excel format for Grid
+  const rowData = data.map(dbRow => {
+    const gridRow = {
+      _db_id: dbRow.id,
+      _excel_row_index: dbRow.excel_row_index
+    };
+    for (const [excelCol, dbCol] of Object.entries(DB_MAP)) {
+      gridRow[excelCol] = dbRow[dbCol];
+    }
+    return gridRow;
+  });
+
+  gridApi.setGridOption('rowData', rowData);
+  showStatus("Loaded", 2000);
+}
+
+async function saveRow(gridRow) {
+  showStatus("Saving...");
+  
+  const dbRecord = {
+    project_id: ctx.projectId,
+    assembly_task_id: ctx.taskId,
+    assembly_id: ctx.assemblyId,
+    excel_row_index: gridRow._excel_row_index || 1
+  };
+  
+  if (gridRow._db_id) {
+    dbRecord.id = gridRow._db_id;
+  }
+
+  for (const [excelCol, dbCol] of Object.entries(DB_MAP)) {
+    // Treat empty strings as null to align with general db practices, or keep as is
+    dbRecord[dbCol] = gridRow[excelCol] !== undefined ? gridRow[excelCol] : null;
+  }
+
+  // Upsert
+  const { data, error } = await sb.from('bom_items').upsert([dbRecord]).select();
+  
+  if (error) {
+    console.error("Error saving row:", error);
+    showStatus("Save Failed", 5000);
+  } else {
+    // If it was a new row, save the returned ID
+    if (!gridRow._db_id && data && data.length > 0) {
+      gridRow._db_id = data[0].id;
+    }
+    showStatus("Saved ✓");
+  }
+}
+
+// --- Upload Excel ---
+
+function handleUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  showStatus("Parsing Excel...");
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    
+    // Convert to 2D array to process flexibly
+    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+    if (rawData.length === 0) return;
+
+    // Find Header Row
+    let headerRowIdx = -1;
+    for (let i = 0; i < Math.min(rawData.length, 10); i++) {
+      const rowStr = rawData[i].join('').toLowerCase();
+      if (rowStr.includes('sr no') || rowStr.includes('sr. no') || rowStr.includes('joblist')) {
+        headerRowIdx = i;
+        break;
+      }
+    }
+
+    if (headerRowIdx === -1) {
+      alert("Could not find header row in Excel");
+      return;
+    }
+
+    // Extract headers
+    let excelHeaders = rawData[headerRowIdx].map(h => String(h).trim());
+    
+    // In your specific file, Release of PO / Ready for Assembly are grouped over 2 columns.
+    // The second row usually has "Status" and "Date".
+    // We will do a generic matching to our fixed EXCEL_COLS to ensure exact mapping.
+    
+    // For simplicity, let's map by fuzzy matching or exact order if possible.
+    // Since the instruction says "Whatever exists in Excel -> must exist EXACTLY", 
+    // we will match the data using the order of EXCEL_COLS assuming the Excel matches.
+    // However, if the user uploads an exact file, it has standard columns.
+    
+    const dbRecords = [];
+    const gridRows = [];
+    
+    let currentRowIndex = 1;
+    for (let i = headerRowIdx + 1; i < rawData.length; i++) {
+      const rowData = rawData[i];
+      // Skip completely empty rows
+      if (rowData.join('').trim() === '') continue;
+
+      const gridRow = { _excel_row_index: currentRowIndex };
+      const dbRecord = {
+        project_id: ctx.projectId,
+        assembly_task_id: ctx.taskId,
+        assembly_id: ctx.assemblyId,
+        excel_row_index: currentRowIndex
+      };
+
+      // Map by standard index order if headers don't match perfectly, 
+      // but ideally we should map by column name. We'll use order for robustness based on your template
+      const colMapIdx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
+      
+      EXCEL_COLS.forEach((colName, index) => {
+        let val = rowData[colMapIdx[index]] !== undefined ? rowData[colMapIdx[index]] : "";
+        gridRow[colName] = val;
+        dbRecord[DB_MAP[colName]] = val;
+      });
+
+      gridRows.push(gridRow);
+      dbRecords.push(dbRecord);
+      currentRowIndex++;
+    }
+
+    showStatus("Saving to DB...");
+    
+    // First, delete existing BOM for this assembly to avoid duplicates (optional, but good for clean replace)
+    await sb.from('bom_items').delete().eq('project_id', ctx.projectId).eq('assembly_task_id', ctx.taskId);
+
+    // Insert new records
+    // Batch insert
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < dbRecords.length; i += BATCH_SIZE) {
+      const batch = dbRecords.slice(i, i + BATCH_SIZE);
+      await sb.from('bom_items').insert(batch);
+    }
+
+    gridApi.setGridOption('rowData', gridRows);
+    showStatus("Upload Complete", 3000);
+    
+    // Reload to get DB IDs
+    loadBomData();
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
+}
+
+// --- Download Excel ---
+
+async function downloadExcel() {
+  showStatus("Generating Excel...");
+  
+  const { data, error } = await sb
+    .from('bom_items')
+    .select('*')
+    .eq('project_id', ctx.projectId)
+    .eq('assembly_task_id', ctx.taskId)
+    .order('excel_row_index', { ascending: true });
+
+  if (error || !data || data.length === 0) {
+    alert("No data to download");
+    showStatus("");
+    return;
+  }
+
+  // Create Header Rows (matching exact formatting)
+  const headerRow1 = [
+    "Sr No", "Joblist", "Dwng No", "Quantity", "Material", "Wt", 
+    "Assembly Name", "Vendor Name", "PO Number", "Unit Price", "Total Price", 
+    "Release of PO", "", "Ready for Assembly", ""
+  ];
+  const headerRow2 = [
+    "", "", "", "", "", "", "", "", "", "", "", 
+    "Status", "Date", "Status", "Date"
+  ];
+
+  const exportData = [headerRow1, headerRow2];
+
+  data.forEach(dbRow => {
+    const row = [];
+    EXCEL_COLS.forEach(colName => {
+      row.push(dbRow[DB_MAP[colName]] || "");
+    });
+    exportData.push(row);
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(exportData);
+
+  // Merges for header
+  ws['!merges'] = [
+    { s: { r: 0, c: 11 }, e: { r: 0, c: 12 } }, // Release of PO
+    { s: { r: 0, c: 13 }, e: { r: 0, c: 14 } }  // Ready for Assembly
+  ];
+
+  const wb = XLSX.utils.book_new();
+  const assemblyName = (data[0] && data[0].assembly_name) || 'HOLD DOWN ROLL ASSY';
+  const safeSheetName = assemblyName.substring(0, 31).replace(/[\\/*?:\[\]]/g, '');
+  XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
+  
+  XLSX.writeFile(wb, `${assemblyName}_BOM.xlsx`);
+  showStatus("Downloaded", 3000);
+}
+
+// --- Custom Paste (Ctrl+V) ---
+function handleCustomPaste(e) {
+  const clipboardData = e.clipboardData || window.clipboardData;
+  const pastedText = clipboardData.getData('Text');
+  if (!pastedText) return;
+  e.preventDefault();
+
+  const focusedCell = gridApi.getFocusedCell();
+  if (!focusedCell) return;
+
+  const startRowIndex = focusedCell.rowIndex;
+  const startColId = focusedCell.column.getId();
+  
+  const columns = gridOptions.columnApi ? gridOptions.columnApi.getAllDisplayedColumns() : gridApi.getAllDisplayedColumns();
+  const startColIndex = columns.findIndex(c => c.getColId() === startColId);
+
+  const rows = pastedText.split(/\r?\n/);
+  
+  const rowNodes = [];
+  gridApi.forEachNode((node) => { rowNodes.push(node); });
+
+  rows.forEach((rowText, i) => {
+    if (!rowText.trim() && i === rows.length - 1) return; // Skip last empty line
+    const cells = rowText.split('\t');
+    const targetRowIndex = startRowIndex + i;
+    
+    let rowNode = rowNodes[targetRowIndex];
+    
+    // If pasting beyond current rows, add new row
+    if (!rowNode) {
+      const newGridRow = {
+        _excel_row_index: targetRowIndex + 1
+      };
+      const res = gridApi.applyTransaction({ add: [newGridRow] });
+      rowNode = res.add[0];
+      rowNodes.push(rowNode);
+    }
+
+    cells.forEach((cellText, j) => {
+      const targetColIndex = startColIndex + j;
+      if (targetColIndex < columns.length) {
+        const colId = columns[targetColIndex].getColId();
+        rowNode.setDataValue(colId, cellText.trim());
+      }
+    });
+  });
+}
+</script>
+</body>
+</html>
