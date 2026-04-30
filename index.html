@@ -286,7 +286,8 @@
   .level4 { padding-left: 40px; font-size: 12px; color: #666; }
 
   /* Tree Collapse UX */
-  .collapsed + div {
+  .node.collapsible.collapsed + .children-cat,
+  .node.collapsible.collapsed + .children-phase {
     display: none;
   }
   .node.collapsible::before {
@@ -372,6 +373,8 @@
   <button style="background-color: #20c997; border:none; color:white; padding:6px 15px; border-radius:4px; cursor:pointer;" onclick="document.getElementById('upload-planning').click()">Upload Planning Excel</button>
   <input type="file" id="upload-planning" accept=".xlsx, .xls" style="display:none;" onchange="handlePlanningUpload(event)">
 
+  <button style="background-color: #0dcaf0; border:none; color:black; padding:6px 15px; border-radius:4px; cursor:pointer;" onclick="createEmptyBom()">New BOM</button>
+
   <button onclick="document.getElementById('upload-excel').click()">Upload BOM Excel</button>
   <input type="file" id="upload-excel" accept=".xlsx, .xls" style="display:none;" onchange="handleUpload(event)">
   
@@ -431,7 +434,14 @@ const columnDefs = EXCEL_COLS.map(colName => {
     headerName: colName,
     field: colName,
     editable: true,
-    width: 150
+    width: 150,
+    cellStyle: params => {
+      const val = (params.value || '').toString().trim().toLowerCase();
+      if (val === 'ns' || val === 'not started' || val === 'hold') return { backgroundColor: '#f8d7da', color: '#842029' };
+      if (val === 'ip' || val === 'in progress' || val === 'wip') return { backgroundColor: '#cff4fc', color: '#055160' };
+      if (val === 'co' || val === 'complete' || val === 'completed' || val === 'done') return { backgroundColor: '#d1e7dd', color: '#0f5132' };
+      return null;
+    }
   };
 });
 
@@ -546,10 +556,14 @@ async function loadTree(projectId) {
 
   treeContainer.innerHTML = html;
   
-  // Select first assembly
+  // Auto-select last opened assembly context
   setTimeout(() => {
-    const firstAssembly = document.querySelector('.level3');
-    if(firstAssembly) firstAssembly.click();
+    let target = null;
+    if (ctx.assemblyId) {
+      target = document.querySelector(`.level3[onclick*="','${ctx.assemblyId}','"]`);
+    }
+    if (!target) target = document.querySelector('.level3');
+    if (target) target.click();
   }, 100);
 }
 
@@ -678,6 +692,19 @@ function showStatus(text, duration = 3000) {
 
 // --- Data Operations ---
 
+function createEmptyBom() {
+  if (!confirm("This will clear the current grid and create an empty BOM. Continue?")) return;
+  const rows = [];
+  for (let i = 1; i <= 28; i++) {
+    const r = { _excel_row_index: i };
+    EXCEL_COLS.forEach(c => r[c] = "");
+    r["Sr No"] = i;
+    rows.push(r);
+  }
+  gridApi.setGridOption('rowData', rows);
+  showStatus("Empty BOM Created", 3000);
+}
+
 async function loadBomData() {
   showStatus("Loading...");
   gridApi.setGridOption('rowData', []);
@@ -794,12 +821,12 @@ function handlePlanningUpload(event) {
 
       if ((type || '').toUpperCase() === 'TASK') {
         const parts = String(name).split('-');
-        if (parts.length >= 3) {
+        if (parts.length >= 2) {
            if (!extractedCategory) extractedCategory = parts[0].replace(/Category/i, '').trim();
            extractedPhase = parts[parts.length - 1].trim();
-        } else {
-           extractedPhase = "Phase";
         }
+        if (!extractedPhase) extractedPhase = currPhase || "Phase";
+        
         currPhase = extractedPhase;
         currCategory = extractedCategory;
       }
@@ -951,7 +978,7 @@ async function downloadExcel() {
   ];
 
   const wb = XLSX.utils.book_new();
-  const assemblyName = (data[0] && data[0].assembly_name) || 'HOLD DOWN ROLL ASSY';
+  const assemblyName = (data[0] && data[0]["Assembly Name"]) || 'HOLD DOWN ROLL ASSY';
   const safeSheetName = assemblyName.substring(0, 31).replace(/[\\/*?:\[\]]/g, '');
   XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
   
