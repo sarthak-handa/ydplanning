@@ -285,6 +285,22 @@
   .level3 { padding-left: 30px; color: #0d6efd; font-weight: 500; }
   .level4 { padding-left: 40px; font-size: 12px; color: #666; }
 
+  /* Tree Collapse UX */
+  .collapsed + div {
+    display: none;
+  }
+  .node.collapsible::before {
+    content: "▼";
+    display: inline-block;
+    margin-right: 5px;
+    font-size: 10px;
+    color: #666;
+    transition: transform 0.2s;
+  }
+  .node.collapsible.collapsed::before {
+    transform: rotate(-90deg);
+  }
+
   .nav-section {
     padding: 12px 15px;
     font-weight: bold;
@@ -353,8 +369,11 @@
   
   <span id="save-status" class="status-text"></span>
 
+  <button style="background-color: #20c997; border:none; color:white; padding:6px 15px; border-radius:4px; cursor:pointer;" onclick="document.getElementById('upload-planning').click()">Upload Planning Excel</button>
+  <input type="file" id="upload-planning" accept=".xlsx, .xls" style="display:none;" onchange="handlePlanningUpload(event)">
+
   <button onclick="document.getElementById('upload-excel').click()">Upload BOM Excel</button>
-  <input type="file" id="upload-excel" accept=".xlsx, .xls" onchange="handleUpload(event)">
+  <input type="file" id="upload-excel" accept=".xlsx, .xls" style="display:none;" onchange="handleUpload(event)">
   
   <button onclick="downloadExcel()">Download BOM Excel</button>
 </div>
@@ -484,12 +503,19 @@ async function loadTree(projectId) {
   let html = `<div class="node"><b>Project ${projectId}</b></div>`;
   
   let currentCat = null;
+  let currentPhase = null;
   let currentTaskId = '';
 
   data.forEach(a => {
     if (a.category && a.category !== currentCat) {
-       html += `<div class="node level1">Category ${a.category}</div>`;
+       if (currentPhase) html += `</div>`; // Close previous phase children wrapper
+       if (currentCat) html += `</div>`; // Close previous category children wrapper
+
+       html += `<div class="node level1 collapsible" onclick="this.classList.toggle('collapsed')">Category ${a.category}</div>`;
+       html += `<div class="children-cat">`; // Wrapper for category children
+       
        currentCat = a.category;
+       currentPhase = null; // Important reset
     }
     
     const type = (a.type || '').toUpperCase();
@@ -497,16 +523,26 @@ async function loadTree(projectId) {
     if (type === 'TASK') {
        currentTaskId = a.task_id || '';
        const phaseName = a.phase || 'Phase';
-       html += `<div class="node level2">${phaseName}</div>`;
+       
+       if (phaseName !== currentPhase) {
+         if (currentPhase) html += `</div>`; // Close previous phase children wrapper
+         html += `<div class="node level2 collapsible" onclick="this.classList.toggle('collapsed')">${phaseName}</div>`;
+         html += `<div class="children-phase">`; // Wrapper for phase children
+         currentPhase = phaseName;
+       }
     } 
     else if (type === 'SUBTASK') {
-       const taskText = currentTaskId ? ` (Task ${currentTaskId})` : '';
-       html += `<div class="node level3" onclick="selectAssembly('${projectId}','${currentTaskId}','${a.internal_id}','${a.name}', this)">${a.name}${taskText}</div>`;
+       const safeTaskId = currentTaskId || a.task_id || '';
+       const taskText = safeTaskId ? ` (Task ${safeTaskId})` : '';
+       html += `<div class="node level3" onclick="selectAssembly('${projectId}','${safeTaskId}','${a.internal_id}','${a.name}', this)">${a.name}${taskText}</div>`;
     }
     else if (type === 'STEP') {
        html += `<div class="node level4">${a.name}</div>`;
     }
   });
+
+  if (currentPhase) html += `</div>`; // Close last phase wrapper
+  if (currentCat) html += `</div>`; // Close last category wrapper
 
   treeContainer.innerHTML = html;
   
@@ -715,6 +751,88 @@ async function saveRow(gridRow) {
 }
 
 // --- Upload Excel ---
+
+function handlePlanningUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  showStatus("Parsing Planning...");
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    const data = new Uint8Array(e.target.result);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    
+    const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    if (json.length === 0) return;
+
+    if (!confirm("Overwrite existing Planning data? This will replace all assemblies for this project.")) {
+      showStatus("Upload cancelled", 2000);
+      return;
+    }
+
+    const dbRecords = [];
+    let sortOrder = 1;
+    let currPhase = "";
+    let currCategory = "";
+
+    json.forEach((row) => {
+      const getVal = (possibleKeys) => {
+        const key = Object.keys(row).find(k => possibleKeys.includes(k.toLowerCase().trim()));
+        return key ? row[key] : "";
+      };
+
+      const internalId = getVal(['id', 'internal id', 'wbs', 'internal_id']);
+      const taskId = getVal(['task id', 'task_id', 'task']);
+      const name = getVal(['name', 'task name', 'description']);
+      const type = getVal(['type', 'task type']);
+      const category = getVal(['category']);
+      
+      let extractedPhase = "";
+      let extractedCategory = category;
+
+      if ((type || '').toUpperCase() === 'TASK') {
+        const parts = String(name).split('-');
+        if (parts.length >= 3) {
+           if (!extractedCategory) extractedCategory = parts[0].replace(/Category/i, '').trim();
+           extractedPhase = parts[parts.length - 1].trim();
+        } else {
+           extractedPhase = "Phase";
+        }
+        currPhase = extractedPhase;
+        currCategory = extractedCategory;
+      }
+
+      if (!internalId && !name) return; // skip empty rows
+
+      dbRecords.push({
+        project_id: ctx.projectId,
+        internal_id: String(internalId),
+        task_id: String(taskId),
+        name: String(name),
+        type: String(type),
+        category: String(extractedCategory || currCategory),
+        phase: String(extractedPhase || currPhase),
+        sort_order: sortOrder++
+      });
+    });
+
+    showStatus("Saving Planning...");
+    await sb.from('assemblies').delete().eq('project_id', ctx.projectId);
+
+    const BATCH_SIZE = 100;
+    for (let i = 0; i < dbRecords.length; i += BATCH_SIZE) {
+      const batch = dbRecords.slice(i, i + BATCH_SIZE);
+      await sb.from('assemblies').insert(batch);
+    }
+
+    showStatus("Planning Upload Complete", 3000);
+    loadTree(ctx.projectId);
+  };
+  reader.readAsArrayBuffer(file);
+  event.target.value = '';
+}
 
 function handleUpload(event) {
   const file = event.target.files[0];
