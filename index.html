@@ -259,6 +259,47 @@
   .nav-btn:hover {
     text-decoration: underline;
   }
+
+  /* Tree Hierarchy Styles */
+  .tree {
+    padding-bottom: 20px;
+  }
+  .node {
+    padding: 6px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-left: 2px solid transparent;
+  }
+  .node:hover {
+    background-color: #f1f3f5;
+  }
+  .node.active {
+    background-color: #e7f1ff;
+    border-left: 2px solid #0d6efd;
+  }
+  
+  .level1 { padding-left: 10px; font-weight: bold; }
+  .level2 { padding-left: 20px; }
+  .level3 { padding-left: 30px; color: #0d6efd; font-weight: 500; }
+  .level4 { padding-left: 40px; font-size: 12px; color: #666; }
+
+  .nav-section {
+    padding: 12px 15px;
+    font-weight: bold;
+    border-top: 1px solid #ddd;
+    border-bottom: 1px solid #ddd;
+    background: #f8f9fa;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    color: #495057;
+  }
+  .nav-section:first-child {
+    margin-top: 0;
+    border-top: none;
+  }
 </style>
 </head>
 <body>
@@ -319,22 +360,20 @@
 </div>
 
 <div class="main-container">
-  <div class="left-panel" id="assembly-list">
-    <h3>Assemblies (Project View)</h3>
-    <!-- Hardcoded list as requested for now -->
-    <div class="assembly-item active" onclick="selectAssembly('2533', '51', '1', 'HOLD DOWN ROLL ASSY', this)">
-      <div class="assembly-name">HOLD DOWN ROLL ASSY</div>
-      <div class="assembly-meta">Category: 2 | Phase: O&M | Task: 51</div>
+  <div class="left-panel">
+    <div class="nav-section" onclick="showTreeManagement()" style="cursor:pointer">Modify Projects</div>
+
+    <div class="tree" id="assembly-tree">
+      <div style="padding:15px;color:#666;font-size:12px;">Loading tree...</div>
     </div>
-    <div class="assembly-item" onclick="selectAssembly('2533', '10', '10', 'ENTRY COIL SADDLE', this)">
-      <div class="assembly-name">ENTRY COIL SADDLE</div>
-      <div class="assembly-meta">Category: 1 | Phase: O&M | Task: 10</div>
-    </div>
-    <div class="assembly-item" onclick="selectAssembly('2533', '46', '3', 'PUSHER PLATE ASSY', this)">
-      <div class="assembly-name">PUSHER PLATE ASSY</div>
-      <div class="assembly-meta">Category: 2 | Phase: O&M | Task: 46</div>
+
+    <div class="nav-section" onclick="showTaskManagement()" style="cursor:pointer">Task Management</div>
+    
+    <div id="flat-assembly-list" style="display:none; flex:1; overflow-y:auto;">
+      <!-- Flat assembly list rendered here -->
     </div>
   </div>
+
 
   <div class="main-panel">
     <div class="panel-header">
@@ -365,27 +404,6 @@ const EXCEL_COLS = [
   "Release PO Status", "Release PO Date", "Ready Assembly Status", "Ready Assembly Date"
 ];
 
-// Map Excel columns to Supabase columns
-const DB_MAP = {
-  "Sr No": "sr_no",
-  "Joblist": "joblist",
-  "Dwng No": "dwg_no",
-  "Quantity": "quantity",
-  "Material": "material",
-  "Wt": "weight",
-  "Assembly Name": "assembly_name",
-  "Vendor Name": "vendor_name",
-  "PO Number": "po_number",
-  "Unit Price": "unit_price",
-  "Total Price": "total_price",
-  "Release PO Status": "release_po_status",
-  "Release PO Date": "release_po_date",
-  "Ready Assembly Status": "ready_asm_status",
-  "Ready Assembly Date": "ready_asm_date"
-};
-
-const REV_MAP = Object.fromEntries(Object.entries(DB_MAP).map(([k, v]) => [v, k]));
-
 // AG Grid Setup
 let gridApi;
 
@@ -406,9 +424,7 @@ const gridOptions = {
     filter: true
   },
   rowData: [],
-  onCellValueChanged: async (event) => {
-    await saveRow(event.data);
-  },
+  onCellValueChanged: (event) => saveRowDebounced(event.data),
   stopEditingWhenCellsLoseFocus: true,
   enableRangeSelection: true // Basic clipboard support
 };
@@ -435,9 +451,102 @@ function showWorkspace(projectId) {
   document.getElementById('screen-workspace').classList.add('active');
   document.getElementById('input-project').value = projectId;
   ctx.projectId = projectId;
-  // Let's select the first hardcoded assembly by default
-  const firstAssembly = document.querySelector('.assembly-item');
-  if(firstAssembly) firstAssembly.click();
+  
+  loadTree(projectId);
+}
+
+// --- Left Panel Navigation ---
+function showTaskManagement() {
+  document.getElementById('assembly-tree').style.display = 'none';
+  document.getElementById('flat-assembly-list').style.display = 'block';
+  renderFlatAssemblies();
+}
+
+function showTreeManagement() {
+  document.getElementById('assembly-tree').style.display = 'block';
+  document.getElementById('flat-assembly-list').style.display = 'none';
+}
+
+async function loadTree(projectId) {
+  const treeContainer = document.getElementById('assembly-tree');
+  treeContainer.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">Loading tree...</div>';
+  
+  const { data, error } = await sb.from('assemblies')
+    .select('*')
+    .eq('project_id', projectId)
+    .order('sort_order', { ascending: true });
+    
+  if (error || !data || data.length === 0) {
+    treeContainer.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">No assemblies found. Upload Excel first.</div>';
+    return;
+  }
+
+  let html = `<div class="node"><b>Project ${projectId}</b></div>`;
+  
+  let currentCat = null;
+  let currentTaskId = '';
+
+  data.forEach(a => {
+    if (a.category && a.category !== currentCat) {
+       html += `<div class="node level1">Category ${a.category}</div>`;
+       currentCat = a.category;
+    }
+    
+    const type = (a.type || '').toUpperCase();
+    
+    if (type === 'TASK') {
+       currentTaskId = a.task_id || '';
+       const phaseName = a.phase || 'Phase';
+       html += `<div class="node level2">${phaseName}</div>`;
+    } 
+    else if (type === 'SUBTASK') {
+       const taskText = currentTaskId ? ` (Task ${currentTaskId})` : '';
+       html += `<div class="node level3" onclick="selectAssembly('${projectId}','${currentTaskId}','${a.internal_id}','${a.name}', this)">${a.name}${taskText}</div>`;
+    }
+    else if (type === 'STEP') {
+       html += `<div class="node level4">${a.name}</div>`;
+    }
+  });
+
+  treeContainer.innerHTML = html;
+  
+  // Select first assembly
+  setTimeout(() => {
+    const firstAssembly = document.querySelector('.level3');
+    if(firstAssembly) firstAssembly.click();
+  }, 100);
+}
+
+async function renderFlatAssemblies() {
+  const flatList = document.getElementById('flat-assembly-list');
+  flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">Loading assemblies...</div>';
+  
+  const { data } = await sb.from('assemblies')
+    .select('*')
+    .eq('project_id', ctx.projectId)
+    .order('sort_order');
+    
+  if(!data || data.length === 0) {
+    flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">No assemblies found.</div>';
+    return;
+  }
+  
+  let html = '';
+  let currentTaskId = '';
+  data.forEach(a => {
+    const type = (a.type || '').toUpperCase();
+    if (type === 'TASK') currentTaskId = a.task_id || '';
+    if (type === 'SUBTASK') {
+       html += `
+         <div class="assembly-item" onclick="selectAssembly('${ctx.projectId}', '${currentTaskId}', '${a.internal_id}', '${a.name}', this)">
+           <div class="assembly-name">${a.name}</div>
+           <div class="assembly-meta">Category: ${a.category || ''} | Phase: ${a.phase || ''} | Task: ${currentTaskId}</div>
+         </div>
+       `;
+    }
+  });
+  
+  flatList.innerHTML = html;
 }
 
 // --- Projects Logic ---
@@ -507,7 +616,7 @@ function renderProjects(projects) {
 
 function selectAssembly(projectId, taskId, assemblyId, name, element) {
   // Update UI
-  document.querySelectorAll('.assembly-item').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.node, .assembly-item').forEach(el => el.classList.remove('active'));
   element.classList.add('active');
   document.getElementById('bom-title').innerText = `BOM View - ${name}`;
   
@@ -556,14 +665,20 @@ async function loadBomData() {
       _db_id: dbRow.id,
       _excel_row_index: dbRow.excel_row_index
     };
-    for (const [excelCol, dbCol] of Object.entries(DB_MAP)) {
-      gridRow[excelCol] = dbRow[dbCol];
-    }
+    EXCEL_COLS.forEach(colName => {
+      gridRow[colName] = dbRow[colName] !== undefined ? dbRow[colName] : "";
+    });
     return gridRow;
   });
 
   gridApi.setGridOption('rowData', rowData);
   showStatus("Loaded", 2000);
+}
+
+let saveTimeout;
+function saveRowDebounced(row) {
+  clearTimeout(saveTimeout);
+  saveTimeout = setTimeout(() => saveRow(row), 500);
 }
 
 async function saveRow(gridRow) {
@@ -580,10 +695,9 @@ async function saveRow(gridRow) {
     dbRecord.id = gridRow._db_id;
   }
 
-  for (const [excelCol, dbCol] of Object.entries(DB_MAP)) {
-    // Treat empty strings as null to align with general db practices, or keep as is
-    dbRecord[dbCol] = gridRow[excelCol] !== undefined ? gridRow[excelCol] : null;
-  }
+  EXCEL_COLS.forEach(colName => {
+    dbRecord[colName] = gridRow[colName] !== undefined ? gridRow[colName] : null;
+  });
 
   // Upsert
   const { data, error } = await sb.from('bom_items').upsert([dbRecord]).select();
@@ -614,46 +728,22 @@ function handleUpload(event) {
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     
-    // Convert to 2D array to process flexibly
-    const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
-    if (rawData.length === 0) return;
+    // Parse using direct object keys as requested
+    const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+    if (json.length === 0) return;
 
-    // Find Header Row
-    let headerRowIdx = -1;
-    for (let i = 0; i < Math.min(rawData.length, 10); i++) {
-      const rowStr = rawData[i].join('').toLowerCase();
-      if (rowStr.includes('sr no') || rowStr.includes('sr. no') || rowStr.includes('joblist')) {
-        headerRowIdx = i;
-        break;
-      }
-    }
-
-    if (headerRowIdx === -1) {
-      alert("Could not find header row in Excel");
+    if (!confirm("Overwrite existing BOM? This will replace all current data for this assembly.")) {
+      showStatus("Upload cancelled", 2000);
       return;
     }
 
-    // Extract headers
-    let excelHeaders = rawData[headerRowIdx].map(h => String(h).trim());
-    
-    // In your specific file, Release of PO / Ready for Assembly are grouped over 2 columns.
-    // The second row usually has "Status" and "Date".
-    // We will do a generic matching to our fixed EXCEL_COLS to ensure exact mapping.
-    
-    // For simplicity, let's map by fuzzy matching or exact order if possible.
-    // Since the instruction says "Whatever exists in Excel -> must exist EXACTLY", 
-    // we will match the data using the order of EXCEL_COLS assuming the Excel matches.
-    // However, if the user uploads an exact file, it has standard columns.
+    const cols = Object.keys(json[0]);
     
     const dbRecords = [];
     const gridRows = [];
     
     let currentRowIndex = 1;
-    for (let i = headerRowIdx + 1; i < rawData.length; i++) {
-      const rowData = rawData[i];
-      // Skip completely empty rows
-      if (rowData.join('').trim() === '') continue;
-
+    json.forEach((rowData) => {
       const gridRow = { _excel_row_index: currentRowIndex };
       const dbRecord = {
         project_id: ctx.projectId,
@@ -662,24 +752,19 @@ function handleUpload(event) {
         excel_row_index: currentRowIndex
       };
 
-      // Map by standard index order if headers don't match perfectly, 
-      // but ideally we should map by column name. We'll use order for robustness based on your template
-      const colMapIdx = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14];
-      
-      EXCEL_COLS.forEach((colName, index) => {
-        let val = rowData[colMapIdx[index]] !== undefined ? rowData[colMapIdx[index]] : "";
-        gridRow[colName] = val;
-        dbRecord[DB_MAP[colName]] = val;
+      cols.forEach(colName => {
+        gridRow[colName] = rowData[colName];
+        dbRecord[colName] = rowData[colName];
       });
 
       gridRows.push(gridRow);
       dbRecords.push(dbRecord);
       currentRowIndex++;
-    }
+    });
 
     showStatus("Saving to DB...");
     
-    // First, delete existing BOM for this assembly to avoid duplicates (optional, but good for clean replace)
+    // Clean replace
     await sb.from('bom_items').delete().eq('project_id', ctx.projectId).eq('assembly_task_id', ctx.taskId);
 
     // Insert new records
@@ -734,7 +819,7 @@ async function downloadExcel() {
   data.forEach(dbRow => {
     const row = [];
     EXCEL_COLS.forEach(colName => {
-      row.push(dbRow[DB_MAP[colName]] || "");
+      row.push(dbRow[colName] !== undefined ? dbRow[colName] : "");
     });
     exportData.push(row);
   });
@@ -801,6 +886,11 @@ function handleCustomPaste(e) {
         rowNode.setDataValue(colId, cellText.trim());
       }
     });
+  });
+
+  // Recalculate row indices after paste
+  gridApi.forEachNode((node, index) => {
+    node.data._excel_row_index = index + 1;
   });
 }
 </script>
