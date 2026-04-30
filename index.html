@@ -385,7 +385,7 @@
 <div class="main-container">
   <div class="left-panel">
     <div class="nav-section" style="display:flex; justify-content:space-between; align-items:center;">
-      <span onclick="showTreeManagement()" style="cursor:pointer">Modify Projects</span>
+      <span onclick="showTreeManagement()" style="cursor:pointer">Structure (WBS)</span>
       <button style="background-color: #0d6efd; border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;" onclick="addAssembly()">+ Add</button>
     </div>
 
@@ -393,7 +393,7 @@
       <div style="padding:15px;color:#666;font-size:12px;">Loading tree...</div>
     </div>
 
-    <div class="nav-section" onclick="showTaskManagement()" style="cursor:pointer">Task Management</div>
+    <div class="nav-section" onclick="showTaskManagement()" style="cursor:pointer">Execution (Tasks)</div>
     
     <div id="flat-assembly-list" style="display:none; flex:1; overflow-y:auto;">
       <!-- Flat assembly list rendered here -->
@@ -554,8 +554,21 @@ async function loadTree(projectId) {
     } 
     else if (type === 'SUBTASK') {
        const safeTaskId = currentTaskId || a.task_id || '';
-       const taskText = safeTaskId ? ` (Task ${safeTaskId})` : '';
-       html += `<div class="node level3" onclick="selectAssembly('${projectId}','${safeTaskId}','${a.internal_id}','${a.name}', this)">${a.name}${taskText}</div>`;
+       const taskText = safeTaskId ? ` <span style="color:#999;font-size:10px;user-select:none;">(Task ${safeTaskId})</span>` : '';
+       html += `
+         <div class="node level3 editable-node"
+              data-id="${a.internal_id}"
+              data-project="${projectId}"
+              data-task="${safeTaskId}"
+              style="display:flex; justify-content:space-between; align-items:center; padding-right:10px;"
+              ondblclick="enableEdit(this, event)"
+              onclick="selectAssembly('${projectId}','${safeTaskId}','${a.internal_id}','${a.name.replace(/'/g, "\\'")}', this)">
+              <span><span class="edit-target">${a.name}</span>${taskText}</span>
+              <span class="node-actions" style="display:flex; gap:5px;">
+                 <button style="background:none; border:none; color:#198754; cursor:pointer; padding:0; font-size:12px;" onclick="duplicateAssembly(event, '${a.internal_id}')" title="Duplicate">📑</button>
+                 <button style="background:none; border:none; color:#dc3545; cursor:pointer; padding:0; font-size:12px;" onclick="deleteAssembly(event, '${a.internal_id}')" title="Delete">🗑️</button>
+              </span>
+         </div>`;
     }
     else if (type === 'STEP') {
        html += `<div class="node level4">${a.name}</div>`;
@@ -580,28 +593,25 @@ async function loadTree(projectId) {
 
 async function renderFlatAssemblies() {
   const flatList = document.getElementById('flat-assembly-list');
-  flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">Loading assemblies...</div>';
+  flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">Loading execution tasks...</div>';
   
   const { data } = await sb.from('assemblies')
     .select('*')
     .eq('project_id', ctx.projectId)
-    .order('sort_order');
+    .order('internal_id');
     
   if(!data || data.length === 0) {
-    flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">No assemblies found.</div>';
+    flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">No execution tasks found.</div>';
     return;
   }
   
   let html = '';
-  let currentTaskId = '';
   data.forEach(a => {
-    const type = (a.type || '').toUpperCase();
-    if (type === 'TASK') currentTaskId = a.task_id || '';
-    if (type === 'SUBTASK') {
+    if ((a.type || '').toUpperCase() === 'STEP') {
        html += `
-         <div class="assembly-item" onclick="selectAssembly('${ctx.projectId}', '${currentTaskId}', '${a.internal_id}', '${a.name}', this)">
-           <div class="assembly-name">${a.name}</div>
-           <div class="assembly-meta">Category: ${a.category || ''} | Phase: ${a.phase || ''} | Task: ${currentTaskId}</div>
+         <div class="assembly-item" onclick="selectAssembly('${ctx.projectId}', '${a.task_id || ''}', '${a.internal_id}', '${a.name.replace(/'/g, "\\'")}', this)">
+           <div class="assembly-name">${a.internal_id} - ${a.name}</div>
+           <div class="assembly-meta">Category: ${a.category || ''} | Phase: ${a.phase || ''} | Task: ${a.task_id || ''}</div>
          </div>
        `;
     }
@@ -1124,16 +1134,15 @@ async function addAssembly() {
     .from('assemblies')
     .select('internal_id')
     .eq('project_id', projectId)
-    .eq('type', 'SUBTASK')
-    .order('internal_id', { ascending: false })
-    .limit(1);
+    .eq('type', 'SUBTASK');
 
   let nextId = 1;
   if (data && data.length > 0) {
-    const last = data[0].internal_id.split('.')[0];
-    if (!isNaN(parseInt(last))) {
-      nextId = parseInt(last) + 1;
-    }
+    const maxSibling = data.reduce((max, s) => {
+      const val = parseInt(s.internal_id.split('.')[0]);
+      return (!isNaN(val) && val > max) ? val : max;
+    }, 0);
+    nextId = maxSibling + 1;
   }
   const baseId = nextId.toString();
   
@@ -1173,6 +1182,158 @@ async function addAssembly() {
 
   showStatus("Assembly added");
   loadTree(projectId);
+}
+
+function enableEdit(el, event) {
+  if (event) event.stopPropagation();
+  const target = el.querySelector('.edit-target');
+  if (!target) return;
+  
+  const original = target.innerText;
+
+  target.setAttribute("contenteditable", "true");
+  target.focus();
+
+  // Move cursor to end
+  const sel = document.getSelection();
+  sel.removeAllRanges();
+  const range = document.createRange();
+  range.selectNodeContents(target);
+  range.collapse(false);
+  sel.addRange(range);
+
+  target.onblur = () => saveNodeEdit(target, original, el.dataset.id);
+  target.onkeydown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      target.blur();
+    }
+    if (e.key === "Escape") {
+      target.innerText = original;
+      target.blur();
+    }
+  };
+}
+
+async function saveNodeEdit(target, original, internalId) {
+  target.removeAttribute("contenteditable");
+
+  const newName = target.innerText.trim();
+  if (!newName || newName === original) {
+    target.innerText = original;
+    return;
+  }
+
+  showStatus("Saving...");
+
+  const { error } = await sb
+    .from('assemblies')
+    .update({ name: newName })
+    .eq('project_id', ctx.projectId)
+    .eq('internal_id', internalId);
+
+  if (error) {
+    console.error(error);
+    target.innerText = original;
+    showStatus("Save failed", 3000);
+  } else {
+    showStatus("Updated ✓", 2000);
+    // Update click attributes so next selection holds right context
+    const parentEl = target.closest('.editable-node');
+    if (parentEl) {
+       const projectId = parentEl.dataset.project;
+       const taskId = parentEl.dataset.task;
+       parentEl.setAttribute('onclick', `selectAssembly('${projectId}','${taskId}','${internalId}','${newName.replace(/'/g, "\\'")}', this)`);
+       
+       if (parentEl.classList.contains('active')) {
+         document.getElementById('bom-title').innerText = `BOM View - ${newName}`;
+       }
+    }
+  }
+}
+
+async function deleteAssembly(event, internalId) {
+  event.stopPropagation();
+  if (!confirm(`Are you sure you want to delete assembly ${internalId} and all its steps?`)) return;
+
+  showStatus("Deleting...");
+  
+  const { error } = await sb
+    .from('assemblies')
+    .delete()
+    .eq('project_id', ctx.projectId)
+    .like('internal_id', `${internalId}%`);
+
+  if (error) {
+    console.error(error);
+    showStatus("Delete failed", 3000);
+  } else {
+    showStatus("Deleted ✓", 2000);
+    loadTree(ctx.projectId);
+  }
+}
+
+async function duplicateAssembly(event, internalId) {
+  event.stopPropagation();
+  
+  showStatus("Duplicating...");
+
+  // 1. Fetch subtree
+  const { data, error } = await sb
+    .from('assemblies')
+    .select('*')
+    .eq('project_id', ctx.projectId)
+    .like('internal_id', `${internalId}%`)
+    .order('internal_id');
+
+  if (error || !data || data.length === 0) {
+    showStatus("Duplicate failed", 3000);
+    return;
+  }
+
+  // 2. Determine new base ID
+  const { data: siblings } = await sb
+    .from('assemblies')
+    .select('internal_id')
+    .eq('project_id', ctx.projectId)
+    .eq('type', 'SUBTASK');
+
+  let nextId = 1;
+  if (siblings && siblings.length > 0) {
+     const maxSibling = siblings.reduce((max, s) => {
+        const val = parseInt(s.internal_id.split('.')[0]);
+        return (!isNaN(val) && val > max) ? val : max;
+     }, 0);
+     nextId = maxSibling + 1;
+  }
+  
+  const oldBasePrefix = internalId; // e.g. "4.1"
+  const newBasePrefix = nextId.toString() + ".1";
+  
+  const newRows = data.map(row => {
+     const newRow = { ...row };
+     delete newRow.id;
+     delete newRow.created_at;
+     
+     if (newRow.internal_id === oldBasePrefix) {
+        newRow.internal_id = newBasePrefix;
+        newRow.name = newRow.name + " (Copy)";
+     } else if (newRow.internal_id.startsWith(oldBasePrefix + ".")) {
+        newRow.internal_id = newRow.internal_id.replace(oldBasePrefix, newBasePrefix);
+     }
+     
+     newRow.sort_order = Date.now() + Math.random() * 1000;
+     return newRow;
+  });
+
+  const { error: insErr } = await sb.from('assemblies').insert(newRows);
+  if (insErr) {
+    console.error(insErr);
+    showStatus("Duplicate failed", 3000);
+  } else {
+    showStatus("Duplicated ✓", 2000);
+    loadTree(ctx.projectId);
+  }
 }
 </script>
 </body>
