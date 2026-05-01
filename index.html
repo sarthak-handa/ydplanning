@@ -1,1340 +1,459 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CCPM + BOM System Replica</title>
-
-<!-- Supabase -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<!-- SheetJS -->
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<!-- AG Grid -->
-<script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.noStyle.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css">
-
-<style>
-  body {
-    margin: 0;
-    padding: 0;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-    background: #ffffff;
-    color: #333;
-  }
-
-  .top-bar {
-    display: flex;
-    align-items: center;
-    padding: 10px 20px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #dee2e6;
-    gap: 15px;
-    font-size: 14px;
-  }
-
-  .top-bar .group {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .top-bar input[type="text"] {
-    padding: 6px 10px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    width: 120px;
-  }
-
-  .top-bar button {
-    padding: 6px 15px;
-    background: #0d6efd;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 14px;
-  }
-
-  .top-bar button:hover {
-    background: #0b5ed7;
-  }
-
-  .top-bar input[type="file"] {
-    display: none;
-  }
-
-  .main-container {
-    display: flex;
-    flex: 1;
-    overflow: hidden;
-  }
-
-  .left-panel {
-    width: 280px;
-    background: #fdfdfd;
-    border-right: 1px solid #dee2e6;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .left-panel h3 {
-    margin: 0;
-    padding: 15px;
-    font-size: 14px;
-    background: #f1f3f5;
-    border-bottom: 1px solid #dee2e6;
-  }
-
-  .assembly-item {
-    padding: 12px 15px;
-    border-bottom: 1px solid #eee;
-    cursor: pointer;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .assembly-item:hover {
-    background: #f8f9fa;
-  }
-
-  .assembly-item.active {
-    background: #e7f1ff;
-    border-left: 3px solid #0d6efd;
-  }
-
-  .assembly-name {
-    font-weight: 600;
-    font-size: 13px;
-  }
-
-  .assembly-meta {
-    font-size: 11px;
-    color: #666;
-  }
-
-  .main-panel {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-
-  .panel-header {
-    padding: 10px 20px;
-    border-bottom: 1px solid #dee2e6;
-    background: #fff;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-  }
-
-  .panel-title {
-    font-size: 16px;
-    font-weight: 600;
-  }
-
-  #myGrid {
-    flex: 1;
-    width: 100%;
-  }
-
-  .status-text {
-    font-size: 12px;
-    color: #198754;
-    font-weight: 500;
-  }
-
-  /* Screens */
-  .screen {
-    display: none;
-    flex: 1;
-    overflow: hidden;
-    flex-direction: column;
-    height: 100vh;
-  }
-  .screen.active {
-    display: flex;
-  }
-
-  /* Projects List Styles */
-  .projects-top {
-    padding: 15px 20px;
-    background: #fff;
-    border-bottom: 1px solid #dee2e6;
-    font-size: 18px;
-    font-weight: 600;
-  }
-  .projects-panel {
-    flex: 1;
-    overflow: auto;
-    background: #f8f9fa;
-    padding: 20px;
-  }
-  .projects-table {
-    width: 100%;
-    border-collapse: collapse;
-    background: #fff;
-    border: 1px solid #dee2e6;
-    border-radius: 4px;
-    overflow: hidden;
-  }
-  .projects-table th, .projects-table td {
-    padding: 12px 15px;
-    border-bottom: 1px solid #dee2e6;
-    text-align: left;
-    font-size: 13px;
-    white-space: nowrap;
-  }
-  .projects-table th {
-    background: #f1f3f5;
-    font-weight: 600;
-    color: #495057;
-  }
-  .projects-table tr:last-child td {
-    border-bottom: none;
-  }
-  .projects-table tr:hover {
-    background: #f8f9fa;
-    cursor: pointer;
-  }
-
-  .circle-indicator {
-    display: inline-block;
-    width: 12px;
-    height: 12px;
-    background-color: #dc3545;
-    border-radius: 50%;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-
-  .pill {
-    padding: 4px 10px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 600;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .pill.checked-in { background: #087f5b; color: white; }
-  .pill.in-process { background: #339af0; color: white; }
-  .pill.ccl { background: #ff922b; color: white; }
-  .pill.rewi { background: #82c91e; color: white; }
-  .pill.cgl { background: #f06595; color: white; }
-  .pill.apl { background: #fa5252; color: white; }
-  .pill.pick { background: #38d9a9; color: white; }
-  .pill.six-hi { background: #845ef7; color: white; }
-  .pill.default { background: #e9ecef; color: #495057; }
-
-  .manager-avatar {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    background: #20c997;
-    color: white;
-    font-size: 10px;
-    font-weight: bold;
-    margin-right: 8px;
-    vertical-align: middle;
-  }
-
-  .nav-btn {
-    background: none;
-    border: none;
-    color: #0d6efd;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 14px;
-    margin-right: 15px;
-  }
-  .nav-btn:hover {
-    text-decoration: underline;
-  }
-
-  /* Tree Hierarchy Styles */
-  .tree {
-    padding-bottom: 20px;
-  }
-  .node {
-    padding: 6px 10px;
-    cursor: pointer;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    border-left: 2px solid transparent;
-  }
-  .node:hover {
-    background-color: #f1f3f5;
-  }
-  .node.active {
-    background-color: #e7f1ff;
-    border-left: 2px solid #0d6efd;
-  }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YOGIJI DIGI | Project Operating System</title>
   
-  .level1 { padding-left: 10px; font-weight: bold; }
-  .level2 { padding-left: 20px; }
-  .level3 { padding-left: 30px; color: #0d6efd; font-weight: 500; }
-  .level4 { padding-left: 40px; font-size: 12px; color: #666; }
-
-  /* Tree Collapse UX */
-  .node.collapsible.collapsed + .children-cat,
-  .node.collapsible.collapsed + .children-phase {
-    display: none;
-  }
-  .node.collapsible::before {
-    content: "▼";
-    display: inline-block;
-    margin-right: 5px;
-    font-size: 10px;
-    color: #666;
-    transition: transform 0.2s;
-  }
-  .node.collapsible.collapsed::before {
-    transform: rotate(-90deg);
-  }
-
-  .nav-section {
-    padding: 12px 15px;
-    font-weight: bold;
-    border-top: 1px solid #ddd;
-    border-bottom: 1px solid #ddd;
-    background: #f8f9fa;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    font-size: 14px;
-    color: #495057;
-  }
-  .nav-section:first-child {
-    margin-top: 0;
-    border-top: none;
-  }
-</style>
+  <link href="yd-favicon.png" rel="icon" />
+  
+  <!-- Fonts & Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet" />
+  
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- SheetJS -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <!-- AG Grid -->
+  <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.noStyle.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-grid.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-alpine.css">
+  
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<!-- PROJECTS SCREEN -->
-<div id="screen-projects" class="screen active">
-  <div class="projects-top" style="display:flex; justify-content:space-between; align-items:center;">
-    <span>Projects Workspace</span>
-    <button style="background-color: #0d6efd; border:none; color:white; padding:6px 15px; border-radius:4px; cursor:pointer;" onclick="createProject()">+ New Project</button>
-  </div>
-  <div class="projects-panel">
-    <table class="projects-table">
-      <thead>
-        <tr>
-          <th>Project</th>
-          <th>Division</th>
-          <th>Manager</th>
-          <th>Plan Status</th>
-          <th>Labels</th>
-          <th>State</th>
-          <th>Start Dt.</th>
-          <th>Due Dt.</th>
-          <th>Proj. Dt.</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="projects-tbody">
-        <!-- Filled by JS -->
-      </tbody>
-    </table>
-  </div>
-</div>
-
-<!-- WORKSPACE SCREEN -->
-<div id="screen-workspace" class="screen">
-<div class="top-bar">
-  <button class="nav-btn" onclick="showProjects()">← Back to Projects</button>
-  <div class="group">
-    <label>Project ID:</label>
-    <input type="text" id="input-project" value="2533" readonly>
-  </div>
-  <div class="group">
-    <label>Task ID:</label>
-    <input type="text" id="input-task" value="51">
-  </div>
-  <div class="group">
-    <label>Assembly ID:</label>
-    <input type="text" id="input-assembly" value="1">
-  </div>
-  
-  <div style="flex:1;"></div>
-  
-  <span id="save-status" class="status-text"></span>
-
-  <button style="background-color: #20c997; border:none; color:white; padding:6px 15px; border-radius:4px; cursor:pointer;" onclick="document.getElementById('upload-planning').click()">Upload Planning Excel</button>
-  <input type="file" id="upload-planning" accept=".xlsx, .xls" style="display:none;" onchange="handlePlanningUpload(event)">
-
-  <button style="background-color: #0dcaf0; border:none; color:black; padding:6px 15px; border-radius:4px; cursor:pointer;" onclick="createEmptyBom()">New BOM</button>
-
-  <button onclick="document.getElementById('upload-excel').click()">Upload BOM Excel</button>
-  <input type="file" id="upload-excel" accept=".xlsx, .xls" style="display:none;" onchange="handleUpload(event)">
-  
-  <button onclick="downloadExcel()">Download BOM Excel</button>
-</div>
-
-<div class="main-container">
-  <div class="left-panel">
-    <div class="nav-section" style="display:flex; justify-content:space-between; align-items:center;">
-      <span onclick="showTreeManagement()" style="cursor:pointer">Structure (WBS)</span>
-      <button style="background-color: #0d6efd; border:none; color:white; padding:4px 8px; border-radius:4px; cursor:pointer; font-size:11px;" onclick="addAssembly()">+ Add</button>
+  <header class="app-header">
+    <div class="logo-container">
+      <img src="YDLOGO.png" alt="YOGIJI DIGI Logo">
+      <div class="logo-text">PROJECT OPERATING SYSTEM</div>
     </div>
-
-    <div class="tree" id="assembly-tree">
-      <div style="padding:15px;color:#666;font-size:12px;">Loading tree...</div>
+    <div class="user-profile">
+      <span class="badge badge-primary"><i class="fas fa-user-circle"></i> ADMIN PANEL</span>
     </div>
+  </header>
 
-    <div class="nav-section" onclick="showTaskManagement()" style="cursor:pointer">Execution (Tasks)</div>
-    
-    <div id="flat-assembly-list" style="display:none; flex:1; overflow-y:auto;">
-      <!-- Flat assembly list rendered here -->
-    </div>
-  </div>
-
-
-  <div class="main-panel">
-    <div class="panel-header">
-      <div class="panel-title" id="bom-title">BOM View - HOLD DOWN ROLL ASSY</div>
-    </div>
-    <div id="myGrid" class="ag-theme-alpine"></div>
-  </div>
-</div>
-</div>
-
-<script>
-// --- Configuration ---
-const SUPABASE_URL = "https://vidoqysothqtrgvkzouh.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpZG9xeXNvdGhxdHJndmt6b3VoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjEwMTksImV4cCI6MjA5MzA5NzAxOX0.-WSt4v067PAUqc3Z99wESocy5KExO5-mLg6DafjDD8s";
-const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-// Current Context
-let ctx = {
-  projectId: '2533',
-  taskId: '51',
-  assemblyId: '1'
-};
-
-// Exact column headers from Excel
-const EXCEL_COLS = [
-  "Sr No", "Joblist", "Dwng No", "Quantity", "Material", "Wt", 
-  "Assembly Name", "Vendor Name", "PO Number", "Unit Price", "Total Price", 
-  "Release PO Status", "Release PO Date", "Ready Assembly Status", "Ready Assembly Date"
-];
-
-// AG Grid Setup
-let gridApi;
-
-const columnDefs = EXCEL_COLS.map(colName => {
-  return {
-    headerName: colName,
-    field: colName,
-    editable: true,
-    width: 150,
-    cellStyle: params => {
-      const val = (params.value || '').toString().trim().toLowerCase();
-      if (val === 'ns' || val === 'not started' || val === 'hold') return { backgroundColor: '#f8d7da', color: '#842029' };
-      if (val === 'ip' || val === 'in progress' || val === 'wip') return { backgroundColor: '#cff4fc', color: '#055160' };
-      if (val === 'co' || val === 'complete' || val === 'completed' || val === 'done') return { backgroundColor: '#d1e7dd', color: '#0f5132' };
-      return null;
-    }
-  };
-});
-
-const gridOptions = {
-  columnDefs: columnDefs,
-  defaultColDef: {
-    resizable: true,
-    sortable: true,
-    filter: true
-  },
-  rowData: [],
-  onCellValueChanged: (event) => saveRowDebounced(event.data),
-  stopEditingWhenCellsLoseFocus: true,
-  enableRangeSelection: true // Basic clipboard support
-};
-
-// Initialize Grid
-document.addEventListener("DOMContentLoaded", () => {
-  const gridDiv = document.querySelector('#myGrid');
-  gridApi = agGrid.createGrid(gridDiv, gridOptions);
-  
-  // Attach custom paste handler
-  gridDiv.addEventListener('paste', handleCustomPaste);
-
-  // Load initial Data
-  ctx.projectId = localStorage.getItem("projectId") || '';
-  if (ctx.projectId) {
-    showWorkspace(ctx.projectId);
-  } else {
-    loadProjects();
-  }
-});
-
-function showProjects() {
-  document.getElementById('screen-workspace').classList.remove('active');
-  document.getElementById('screen-projects').classList.add('active');
-  localStorage.removeItem("projectId");
-}
-
-function showWorkspace(projectId) {
-  document.getElementById('screen-projects').classList.remove('active');
-  document.getElementById('screen-workspace').classList.add('active');
-  document.getElementById('input-project').value = projectId;
-  ctx.projectId = projectId;
-  localStorage.setItem("projectId", projectId);
-  
-  loadTree(projectId);
-}
-
-// --- Left Panel Navigation ---
-function showTaskManagement() {
-  document.getElementById('assembly-tree').style.display = 'none';
-  document.getElementById('flat-assembly-list').style.display = 'block';
-  renderFlatAssemblies();
-}
-
-function showTreeManagement() {
-  document.getElementById('assembly-tree').style.display = 'block';
-  document.getElementById('flat-assembly-list').style.display = 'none';
-}
-
-async function loadTree(projectId) {
-  const treeContainer = document.getElementById('assembly-tree');
-  treeContainer.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">Loading tree...</div>';
-  
-  const { data, error } = await sb.from('assemblies')
-    .select('*')
-    .eq('project_id', projectId)
-    .order('sort_order', { ascending: true });
-    
-  if (error || !data || data.length === 0) {
-    treeContainer.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">No assemblies found. Upload Excel first.</div>';
-    return;
-  }
-
-  let html = `<div class="node"><b>Project ${projectId}</b></div>`;
-  
-  let currentCat = null;
-  let currentPhase = null;
-  let currentTaskId = '';
-
-  data.forEach(a => {
-    if (a.category && a.category !== currentCat) {
-       if (currentPhase) html += `</div>`; // Close previous phase children wrapper
-       if (currentCat) html += `</div>`; // Close previous category children wrapper
-
-       html += `<div class="node level1 collapsible" onclick="this.classList.toggle('collapsed')">Category ${a.category}</div>`;
-       html += `<div class="children-cat">`; // Wrapper for category children
-       
-       currentCat = a.category;
-       currentPhase = null; // Important reset
-    }
-    
-    const type = (a.type || '').toUpperCase();
-    
-    if (type === 'TASK') {
-       currentTaskId = a.task_id || '';
-       const phaseName = a.phase || 'Phase';
-       
-       if (phaseName !== currentPhase) {
-         if (currentPhase) html += `</div>`; // Close previous phase children wrapper
-         html += `<div class="node level2 collapsible" onclick="this.classList.toggle('collapsed')">${phaseName}</div>`;
-         html += `<div class="children-phase">`; // Wrapper for phase children
-         currentPhase = phaseName;
-       }
-    } 
-    else if (type === 'SUBTASK') {
-       const safeTaskId = currentTaskId || a.task_id || '';
-       const taskText = safeTaskId ? ` <span style="color:#999;font-size:10px;user-select:none;">(Task ${safeTaskId})</span>` : '';
-       html += `
-         <div class="node level3 editable-node"
-              data-id="${a.internal_id}"
-              data-project="${projectId}"
-              data-task="${safeTaskId}"
-              style="display:flex; justify-content:space-between; align-items:center; padding-right:10px;"
-              ondblclick="enableEdit(this, event)"
-              onclick="selectAssembly('${projectId}','${safeTaskId}','${a.internal_id}','${a.name.replace(/'/g, "\\'")}', this)">
-              <span><span class="edit-target">${a.name}</span>${taskText}</span>
-              <span class="node-actions" style="display:flex; gap:5px;">
-                 <button style="background:none; border:none; color:#198754; cursor:pointer; padding:0; font-size:12px;" onclick="duplicateAssembly(event, '${a.internal_id}')" title="Duplicate">📑</button>
-                 <button style="background:none; border:none; color:#dc3545; cursor:pointer; padding:0; font-size:12px;" onclick="deleteAssembly(event, '${a.internal_id}')" title="Delete">🗑️</button>
-              </span>
-         </div>`;
-    }
-    else if (type === 'STEP') {
-       html += `<div class="node level4">${a.name}</div>`;
-    }
-  });
-
-  if (currentPhase) html += `</div>`; // Close last phase wrapper
-  if (currentCat) html += `</div>`; // Close last category wrapper
-
-  treeContainer.innerHTML = html;
-  
-  // Auto-select last opened assembly context
-  setTimeout(() => {
-    let target = null;
-    if (ctx.assemblyId) {
-      target = document.querySelector(`.level3[onclick*="','${ctx.assemblyId}','"]`);
-    }
-    if (!target) target = document.querySelector('.level3');
-    if (target) target.click();
-  }, 100);
-}
-
-async function renderFlatAssemblies() {
-  const flatList = document.getElementById('flat-assembly-list');
-  flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">Loading execution tasks...</div>';
-  
-  const { data } = await sb.from('assemblies')
-    .select('*')
-    .eq('project_id', ctx.projectId)
-    .order('internal_id');
-    
-  if(!data || data.length === 0) {
-    flatList.innerHTML = '<div style="padding:15px;color:#666;font-size:12px;">No execution tasks found.</div>';
-    return;
-  }
-  
-  let html = '';
-  data.forEach(a => {
-    if ((a.type || '').toUpperCase() === 'STEP') {
-       html += `
-         <div class="assembly-item" onclick="selectAssembly('${ctx.projectId}', '${a.task_id || ''}', '${a.internal_id}', '${a.name.replace(/'/g, "\\'")}', this)">
-           <div class="assembly-name">${a.internal_id} - ${a.name}</div>
-           <div class="assembly-meta">Category: ${a.category || ''} | Phase: ${a.phase || ''} | Task: ${a.task_id || ''}</div>
-         </div>
-       `;
-    }
-  });
-  
-  flatList.innerHTML = html;
-}
-
-// --- Projects Logic ---
-async function loadProjects() {
-  const { data, error } = await sb.from('projects').select('*').order('created_at', { ascending: false });
-  if (error) {
-    console.error("Error loading projects:", error);
-    return;
-  }
-  renderProjects(data || []);
-}
-
-function getLabelClass(label) {
-  const lower = (label || '').toLowerCase();
-  if (lower.includes('ccl')) return 'ccl';
-  if (lower.includes('rewi')) return 'rewi';
-  if (lower.includes('cgl')) return 'cgl';
-  if (lower.includes('apl')) return 'apl';
-  if (lower.includes('pick')) return 'pick';
-  if (lower.includes('6hi')) return 'six-hi';
-  return 'default';
-}
-
-function getInitials(name) {
-  if(!name) return '??';
-  return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-}
-
-function renderProjects(projects) {
-  const tbody = document.getElementById('projects-tbody');
-  
-  if(projects.length === 0) {
-    // Fallback dummy data matching user screenshot if table is empty
-    projects = [
-      { id: '2529', project_code: '2529', name: 'CCL 1500 MM @ 30 MPM', division: 'DEFAULT', manager: 'Saurabh Jangra', plan_status: 'Checked In', labels: 'CCL', state: 'In Process', start_date: '22-Jan-26', due_date: '30-Sep-25', proj_date: '22-Jun-27' },
-      { id: 'N-2534', project_code: 'N - 2534', name: 'BMWIL - TRIMMING - 1500MM@500MPM', division: 'DEFAULT', manager: 'Kunal Dagar', plan_status: 'Checked In', labels: 'Rewi', state: 'In Process', start_date: '05-Feb-26', due_date: '31-Aug-25', proj_date: '24-Mar-27' },
-      { id: 'N-2533', project_code: 'N - 2533', name: 'PICKLING LINE - 2000MM @ 130MPM', division: 'DEFAULT', manager: 'Aditya Saini', plan_status: 'Checked In', labels: 'Pick', state: 'In Process', start_date: '23-Jan-26', due_date: '30-Sep-25', proj_date: '18-Nov-26' }
-    ];
-  }
-
-  let html = '';
-  projects.forEach(p => {
-    // Generate pill classes based on text
-    const planPill = (p.plan_status || '').toLowerCase() === 'checked in' ? 'checked-in' : 'default';
-    const statePill = (p.state || '').toLowerCase() === 'in process' ? 'in-process' : 'default';
-    const labelPill = getLabelClass(p.labels);
-    const avatarColor = '#' + Math.floor(Math.random()*16777215).toString(16).padEnd(6, '0');
-
-    html += `
-      <tr onclick="showWorkspace('${p.id}')">
-        <td><span class="circle-indicator"></span> ${p.project_code || ''} - ${p.name || ''}</td>
-        <td>${p.division || 'DEFAULT'}</td>
-        <td><span class="manager-avatar" style="background:${avatarColor}">${getInitials(p.manager)}</span> ${p.manager || ''}</td>
-        <td><span class="pill ${planPill}">${p.plan_status || ''}</span></td>
-        <td><span class="pill ${labelPill}">${p.labels || ''}</span></td>
-        <td><span class="pill ${statePill}">${p.state || ''} ></span></td>
-        <td>${p.start_date || ''}</td>
-        <td>${p.due_date || ''}</td>
-        <td>${p.proj_date || ''}</td>
-        <td style="color:#0d6efd; font-weight:bold; font-size:16px;">•••</td>
-      </tr>
-    `;
-  });
-  
-  tbody.innerHTML = html;
-}
-
-function selectAssembly(projectId, taskId, assemblyId, name, element) {
-  // Update UI
-  document.querySelectorAll('.node, .assembly-item').forEach(el => el.classList.remove('active'));
-  element.classList.add('active');
-  document.getElementById('bom-title').innerText = `BOM View - ${name}`;
-  
-  document.getElementById('input-project').value = projectId;
-  document.getElementById('input-task').value = taskId;
-  document.getElementById('input-assembly').value = assemblyId;
-
-  // Update Context
-  ctx.projectId = projectId;
-  ctx.taskId = taskId;
-  ctx.assemblyId = assemblyId;
-
-  loadBomData();
-}
-
-function showStatus(text, duration = 3000) {
-  const el = document.getElementById('save-status');
-  el.innerText = text;
-  if (duration) {
-    setTimeout(() => { if (el.innerText === text) el.innerText = ''; }, duration);
-  }
-}
-
-// --- Data Operations ---
-
-function createEmptyBom() {
-  if (!confirm("This will clear the current grid and create an empty BOM. Continue?")) return;
-  const rows = [];
-  for (let i = 1; i <= 28; i++) {
-    const r = { _excel_row_index: i };
-    EXCEL_COLS.forEach(c => r[c] = "");
-    r["Sr No"] = i;
-    rows.push(r);
-  }
-  gridApi.setGridOption('rowData', rows);
-  showStatus("Empty BOM Created", 3000);
-}
-
-async function loadBomData() {
-  showStatus("Loading...");
-  gridApi.setGridOption('rowData', []);
-  
-  const { data, error } = await sb
-    .from('bom_items')
-    .select('*')
-    .eq('project_id', ctx.projectId)
-    .eq('assembly_task_id', ctx.taskId)
-    .order('excel_row_index', { ascending: true });
-
-  if (error) {
-    console.error("Error loading BOM:", error);
-    showStatus("Error loading data", 5000);
-    return;
-  }
-
-  // Convert DB rows to Excel format for Grid
-  const rowData = data.map(dbRow => {
-    const gridRow = {
-      _db_id: dbRow.id,
-      _excel_row_index: dbRow.excel_row_index
-    };
-    EXCEL_COLS.forEach(colName => {
-      gridRow[colName] = dbRow[colName] !== undefined ? dbRow[colName] : "";
-    });
-    return gridRow;
-  });
-
-  gridApi.setGridOption('rowData', rowData);
-  showStatus("Loaded", 2000);
-}
-
-let saveTimeout;
-function saveRowDebounced(row) {
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(() => saveRow(row), 500);
-}
-
-async function saveRow(gridRow) {
-  showStatus("Saving...");
-  
-  const dbRecord = {
-    project_id: ctx.projectId,
-    assembly_task_id: ctx.taskId,
-    assembly_id: ctx.assemblyId,
-    excel_row_index: gridRow._excel_row_index || 1
-  };
-  
-  if (gridRow._db_id) {
-    dbRecord.id = gridRow._db_id;
-  }
-
-  EXCEL_COLS.forEach(colName => {
-    dbRecord[colName] = gridRow[colName] !== undefined ? gridRow[colName] : null;
-  });
-
-  // Upsert
-  const { data, error } = await sb.from('bom_items').upsert([dbRecord]).select();
-  
-  if (error) {
-    console.error("Error saving row:", error);
-    showStatus("Save Failed", 5000);
-  } else {
-    // If it was a new row, save the returned ID
-    if (!gridRow._db_id && data && data.length > 0) {
-      gridRow._db_id = data[0].id;
-    }
-    showStatus("Saved ✓");
-  }
-}
-
-// --- Upload Excel ---
-
-function handlePlanningUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  showStatus("Parsing Planning...");
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
-    
-    const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-    if (json.length === 0) return;
-
-    if (!confirm("This will DELETE all planning for this project. Continue?")) {
-      showStatus("Upload cancelled", 2000);
-      return;
-    }
-
-    const dbRecords = [];
-    let sortOrder = 1;
-    let currPhase = "";
-    let currCategory = "";
-
-    json.forEach((row) => {
-      const getVal = (possibleKeys) => {
-        const key = Object.keys(row).find(k => possibleKeys.includes(k.toLowerCase().trim()));
-        return key ? row[key] : "";
-      };
-
-      const internalId = getVal(['id', 'internal id', 'wbs', 'internal_id']);
-      const taskId = getVal(['task id', 'task_id', 'task']);
-      const name = getVal(['name', 'task name', 'description']);
-      const type = getVal(['type', 'task type']);
-      const category = getVal(['category']);
+  <div class="main-wrapper">
+    <aside class="sidebar">
+      <div class="sidebar-header" style="padding: 20px; border-bottom: 1px solid var(--glass-border);">
+        <button class="btn-premium btn-primary w-100" id="btn-projects-nav" onclick="showProjects()">
+          <i class="fas fa-th-large"></i> DASHBOARD
+        </button>
+      </div>
       
-      let extractedPhase = "";
-      let extractedCategory = category;
+      <div id="tree-container" style="flex: 1; overflow-y: auto; padding-top: 15px; display: none;">
+        <div class="nav-section-title" style="padding: 0 20px 10px; font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase;">Structure (WBS)</div>
+        <div id="assembly-tree" class="tree">
+          <!-- Populated by JS -->
+        </div>
+      </div>
 
-      if ((type || '').toUpperCase() === 'TASK') {
-        const parts = String(name).split('-');
-        if (parts.length >= 2) {
-           if (!extractedCategory) extractedCategory = parts[0].replace(/Category/i, '').trim();
-           extractedPhase = parts[parts.length - 1].trim();
-        }
-        if (!extractedPhase) extractedPhase = currPhase || "Phase";
+      <div class="sidebar-footer" style="padding: 20px; border-top: 1px solid var(--glass-border);">
+        <div class="status-indicator">
+          <span id="save-status" class="status-text" style="font-size: 12px; font-weight: 500; color: var(--primary);"></span>
+        </div>
+      </div>
+    </aside>
+
+    <main class="content-area">
+      <!-- PROJECTS SCREEN -->
+      <section id="screen-projects" class="animate-fade">
+        <div class="d-flex justify-content-between align-items-center mb-4" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+          <h2 style="margin: 0; color: var(--primary); font-weight: 700;">Projects Workspace</h2>
+          <button class="btn-premium btn-primary" onclick="createProject()">
+            <i class="fas fa-plus"></i> NEW PROJECT
+          </button>
+        </div>
         
-        currPhase = extractedPhase;
-        currCategory = extractedCategory;
+        <div class="glass-card">
+          <table class="premium-table">
+            <thead>
+              <tr>
+                <th>Project Details</th>
+                <th>Division</th>
+                <th>Manager</th>
+                <th>Plan Status</th>
+                <th>Labels</th>
+                <th>State</th>
+                <th>Timeline</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="projects-tbody">
+              <!-- Filled by JS -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- WORKSPACE SCREEN -->
+      <section id="screen-workspace" style="display: none;" class="animate-fade">
+        <div class="workspace-header mb-4" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px;">
+          <div class="d-flex align-items-center gap-3" style="display: flex; align-items: center; gap: 15px;">
+            <button class="btn-premium" onclick="showProjects()" style="background: white; border: 1px solid #ddd;">
+              <i class="fas fa-arrow-left"></i> BACK
+            </button>
+            <h3 id="workspace-title" style="margin: 0; color: var(--primary); font-weight: 700;">Project Workspace</h3>
+          </div>
+          
+          <div class="actions-group" style="display: flex; gap: 10px;">
+            <button class="btn-premium btn-primary" onclick="document.getElementById('upload-planning').click()">
+              <i class="fas fa-file-upload"></i> UPLOAD WBS
+            </button>
+            <input type="file" id="upload-planning" accept=".xlsx, .xls" style="display:none;" onchange="handlePlanningUpload(event)">
+            
+            <button class="btn-premium" style="background: #20c997; color: white;" onclick="createEmptyBom()">
+              <i class="fas fa-plus-square"></i> NEW BOM
+            </button>
+            
+            <button class="btn-premium" style="background: #0dcaf0; color: white;" onclick="document.getElementById('upload-excel').click()">
+              <i class="fas fa-file-excel"></i> IMPORT BOM
+            </button>
+            <input type="file" id="upload-excel" accept=".xlsx, .xls" style="display:none;" onchange="handleUpload(event)">
+            
+            <button class="btn-premium" style="background: white; border: 1px solid #ddd;" onclick="downloadExcel()">
+              <i class="fas fa-download"></i> EXPORT
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-card" style="padding: 0; overflow: hidden; height: 65vh; display: flex; flex-direction: column;">
+          <div id="bom-title-bar" style="padding: 15px 20px; background: white; border-bottom: 1px solid #eee; font-weight: 600; color: var(--primary);">
+            <i class="fas fa-table me-2"></i> <span id="bom-title">BOM View - Select an Assembly</span>
+          </div>
+          <div id="myGrid" class="ag-theme-alpine" style="flex: 1;"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="app-footer">
+    <img src="yd-footer.png" alt="Footer Branding">
+  </footer>
+
+  <script>
+    // --- Configuration ---
+    const SUPABASE_URL = "https://vidoqysothqtrgvkzouh.supabase.co";
+    const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZpZG9xeXNvdGhxdHJndmt6b3VoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjEwMTksImV4cCI6MjA5MzA5NzAxOX0.-WSt4v067PAUqc3Z99wESocy5KExO5-mLg6DafjDD8s";
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    // Current Context
+    let ctx = {
+      projectId: '',
+      taskId: '',
+      assemblyId: ''
+    };
+
+    // Exact column headers from Excel
+    const EXCEL_COLS = [
+      "Sr No", "Joblist", "Dwng No", "Quantity", "Material", "Wt", 
+      "Assembly Name", "Vendor Name", "PO Number", "Unit Price", "Total Price", 
+      "Release PO Status", "Release PO Date", "Ready Assembly Status", "Ready Assembly Date"
+    ];
+
+    // AG Grid Setup
+    let gridApi;
+
+    const columnDefs = EXCEL_COLS.map(colName => {
+      return {
+        headerName: colName,
+        field: colName,
+        editable: true,
+        width: 150,
+        cellStyle: params => {
+          const val = (params.value || '').toString().trim().toLowerCase();
+          if (val === 'ns' || val === 'not started' || val === 'hold') return { backgroundColor: '#f8d7da', color: '#842029' };
+          if (val === 'ip' || val === 'in progress' || val === 'wip') return { backgroundColor: '#cff4fc', color: '#055160' };
+          if (val === 'co' || val === 'complete' || val === 'completed' || val === 'done') return { backgroundColor: '#d1e7dd', color: '#0f5132' };
+          return null;
+        }
+      };
+    });
+
+    const gridOptions = {
+      columnDefs: columnDefs,
+      defaultColDef: {
+        resizable: true,
+        sortable: true,
+        filter: true
+      },
+      rowData: [],
+      onCellValueChanged: (event) => saveRowDebounced(event.data),
+      stopEditingWhenCellsLoseFocus: true,
+      enableRangeSelection: true 
+    };
+
+    // Initialize Grid
+    document.addEventListener("DOMContentLoaded", () => {
+      const gridDiv = document.querySelector('#myGrid');
+      gridApi = agGrid.createGrid(gridDiv, gridOptions);
+      
+      // Load initial Data
+      ctx.projectId = localStorage.getItem("projectId") || '';
+      if (ctx.projectId) {
+        showWorkspace(ctx.projectId);
+      } else {
+        loadProjects();
+      }
+    });
+
+    function showProjects() {
+      document.getElementById('screen-workspace').style.display = 'none';
+      document.getElementById('screen-projects').style.display = 'block';
+      document.getElementById('tree-container').style.display = 'none';
+      document.getElementById('btn-projects-nav').classList.add('active');
+      localStorage.removeItem("projectId");
+      loadProjects();
+    }
+
+    function showWorkspace(projectId) {
+      document.getElementById('screen-projects').style.display = 'none';
+      document.getElementById('screen-workspace').style.display = 'block';
+      document.getElementById('tree-container').style.display = 'block';
+      document.getElementById('btn-projects-nav').classList.remove('active');
+      
+      ctx.projectId = projectId;
+      localStorage.setItem("projectId", projectId);
+      
+      loadTree(projectId);
+      updateWorkspaceTitle(projectId);
+    }
+
+    async function updateWorkspaceTitle(projectId) {
+      const { data } = await sb.from('projects').select('name').eq('id', projectId).single();
+      if (data) {
+        document.getElementById('workspace-title').innerText = `${projectId} | ${data.name}`;
+      }
+    }
+
+    async function loadTree(projectId) {
+      const treeContainer = document.getElementById('assembly-tree');
+      treeContainer.innerHTML = '<div style="padding:20px; color:#999; font-size:12px;"><i class="fas fa-spinner fa-spin me-2"></i>Loading WBS...</div>';
+      
+      const { data, error } = await sb.from('assemblies')
+        .select('*')
+        .eq('project_id', projectId)
+        .order('sort_order', { ascending: true });
+        
+      if (error || !data || data.length === 0) {
+        treeContainer.innerHTML = '<div style="padding:20px; color:#999; font-size:12px;">No hierarchy found.</div>';
+        return;
       }
 
-      if (!internalId && !name) return; // skip empty rows
+      let html = '';
+      let currentCat = null;
+      let currentPhase = null;
 
-      dbRecords.push({
-        project_id: ctx.projectId,
-        internal_id: String(internalId),
-        task_id: String(taskId),
-        name: String(name),
-        type: String(type),
-        category: String(extractedCategory || currCategory),
-        phase: String(extractedPhase || currPhase),
-        sort_order: sortOrder++
+      data.forEach(a => {
+        const type = (a.type || '').toUpperCase();
+        
+        if (a.category && a.category !== currentCat) {
+          html += `<div class="nav-section-title" style="padding: 15px 20px 5px; font-size: 10px; color: var(--secondary); opacity: 0.8; font-weight: 700;">CAT: ${a.category}</div>`;
+          currentCat = a.category;
+          currentPhase = null;
+        }
+
+        if (type === 'TASK' || (a.phase && a.phase !== currentPhase)) {
+           const phaseName = a.phase || 'General Phase';
+           if (phaseName !== currentPhase) {
+             html += `<div style="padding: 8px 20px; font-weight: 600; font-size: 12px; color: var(--primary);"><i class="fas fa-layer-group me-2"></i>${phaseName}</div>`;
+             currentPhase = phaseName;
+           }
+        }
+
+        if (type === 'SUBTASK' || type === 'STEP') {
+          const icon = type === 'SUBTASK' ? 'fa-project-diagram' : 'fa-cog';
+          html += `
+            <div class="tree-node ${ctx.assemblyId === a.internal_id ? 'active' : ''}" 
+                 style="margin-left: 15px;"
+                 onclick="selectAssembly('${projectId}','${a.task_id}','${a.internal_id}','${a.name.replace(/'/g, "\\'")}', this)">
+              <i class="fas ${icon}" style="width: 16px; font-size: 12px;"></i>
+              <span class="text-truncate" style="font-size: 13px;">${a.name}</span>
+            </div>
+          `;
+        }
       });
-    });
 
-    showStatus("Saving Planning...");
-    await sb.from('assemblies').delete().eq('project_id', ctx.projectId);
-
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < dbRecords.length; i += BATCH_SIZE) {
-      const batch = dbRecords.slice(i, i + BATCH_SIZE);
-      await sb.from('assemblies').insert(batch);
+      treeContainer.innerHTML = html;
     }
 
-    showStatus("Planning Upload Complete", 3000);
-    loadTree(ctx.projectId);
-  };
-  reader.readAsArrayBuffer(file);
-  event.target.value = '';
-}
-
-function handleUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  showStatus("Parsing Excel...");
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    const data = new Uint8Array(e.target.result);
-    const workbook = XLSX.read(data, { type: 'array' });
-    const firstSheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[firstSheetName];
-    
-    // Parse using direct object keys as requested
-    const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-    if (json.length === 0) return;
-
-    if (!confirm("Overwrite existing BOM? This will replace all current data for this assembly.")) {
-      showStatus("Upload cancelled", 2000);
-      return;
+    async function loadProjects() {
+      const { data, error } = await sb.from('projects').select('*').order('created_at', { ascending: false });
+      if (error) return console.error(error);
+      renderProjects(data || []);
     }
 
-    const cols = Object.keys(json[0]);
-    
-    const dbRecords = [];
-    const gridRows = [];
-    
-    let currentRowIndex = 1;
-    json.forEach((rowData) => {
-      const gridRow = { _excel_row_index: currentRowIndex };
+    function renderProjects(projects) {
+      const tbody = document.getElementById('projects-tbody');
+      let html = '';
+      
+      projects.forEach(p => {
+        const planClass = (p.plan_status || '').toLowerCase().includes('checked') ? 'badge-success' : 'badge-primary';
+        const stateClass = (p.state || '').toLowerCase().includes('process') ? 'badge-warning' : 'badge-primary';
+        
+        html += `
+          <tr onclick="showWorkspace('${p.id}')">
+            <td>
+              <div style="font-weight: 700; color: var(--primary);">${p.project_code || p.id}</div>
+              <div style="font-size: 12px; color: #666;">${p.name || ''}</div>
+            </td>
+            <td>${p.division || 'DEFAULT'}</td>
+            <td>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 28px; height: 28px; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--primary);">
+                  ${(p.manager || '??').split(' ').map(n=>n[0]).join('')}
+                </div>
+                ${p.manager || ''}
+              </div>
+            </td>
+            <td><span class="badge ${planClass}">${p.plan_status || ''}</span></td>
+            <td><span class="badge badge-primary">${p.labels || ''}</span></td>
+            <td><span class="badge ${stateClass}">${p.state || ''}</span></td>
+            <td style="font-size: 12px; color: #666;">
+              <div><i class="fas fa-calendar-alt me-1"></i> ${p.start_date || ''}</div>
+              <div><i class="fas fa-flag-checkered me-1"></i> ${p.due_date || ''}</div>
+            </td>
+            <td><i class="fas fa-ellipsis-v" style="color: #ccc;"></i></td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+
+    function selectAssembly(projectId, taskId, assemblyId, name, element) {
+      document.querySelectorAll('.tree-node').forEach(el => el.classList.remove('active'));
+      element.classList.add('active');
+      document.getElementById('bom-title').innerText = `BOM View - ${name}`;
+      
+      ctx.projectId = projectId;
+      ctx.taskId = taskId;
+      ctx.assemblyId = assemblyId;
+
+      loadBomData();
+    }
+
+    function showStatus(text, duration = 3000) {
+      const el = document.getElementById('save-status');
+      el.innerText = text;
+      if (duration) {
+        setTimeout(() => { if (el.innerText === text) el.innerText = ''; }, duration);
+      }
+    }
+
+    async function loadBomData() {
+      showStatus("Loading...");
+      gridApi.setGridOption('rowData', []);
+      
+      const { data, error } = await sb
+        .from('bom_items')
+        .select('*')
+        .eq('project_id', ctx.projectId)
+        .eq('assembly_task_id', ctx.taskId)
+        .order('excel_row_index', { ascending: true });
+
+      if (error) {
+        showStatus("Load Error", 5000);
+        return;
+      }
+
+      const rowData = data.map(dbRow => {
+        const gridRow = { _db_id: dbRow.id, _excel_row_index: dbRow.excel_row_index };
+        EXCEL_COLS.forEach(colName => gridRow[colName] = dbRow[colName] || "");
+        return gridRow;
+      });
+
+      gridApi.setGridOption('rowData', rowData);
+      showStatus("Loaded", 2000);
+    }
+
+    let saveTimeout;
+    function saveRowDebounced(row) {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => saveRow(row), 500);
+    }
+
+    async function saveRow(gridRow) {
+      showStatus("Saving...");
       const dbRecord = {
         project_id: ctx.projectId,
         assembly_task_id: ctx.taskId,
         assembly_id: ctx.assemblyId,
-        excel_row_index: currentRowIndex
+        excel_row_index: gridRow._excel_row_index || 1
       };
+      if (gridRow._db_id) dbRecord.id = gridRow._db_id;
+      EXCEL_COLS.forEach(colName => dbRecord[colName] = gridRow[colName] || null);
 
-      cols.forEach(colName => {
-        gridRow[colName] = rowData[colName];
-        dbRecord[colName] = rowData[colName];
-      });
-
-      gridRows.push(gridRow);
-      dbRecords.push(dbRecord);
-      currentRowIndex++;
-    });
-
-    showStatus("Saving to DB...");
-    
-    // Clean replace
-    await sb.from('bom_items').delete().eq('project_id', ctx.projectId).eq('assembly_task_id', ctx.taskId);
-
-    // Insert new records
-    // Batch insert
-    const BATCH_SIZE = 100;
-    for (let i = 0; i < dbRecords.length; i += BATCH_SIZE) {
-      const batch = dbRecords.slice(i, i + BATCH_SIZE);
-      await sb.from('bom_items').insert(batch);
-    }
-
-    gridApi.setGridOption('rowData', gridRows);
-    showStatus("Upload Complete", 3000);
-    
-    // Reload to get DB IDs
-    loadBomData();
-  };
-  reader.readAsArrayBuffer(file);
-  event.target.value = '';
-}
-
-// --- Download Excel ---
-
-async function downloadExcel() {
-  showStatus("Generating Excel...");
-  
-  const { data, error } = await sb
-    .from('bom_items')
-    .select('*')
-    .eq('project_id', ctx.projectId)
-    .eq('assembly_task_id', ctx.taskId)
-    .order('excel_row_index', { ascending: true });
-
-  if (error || !data || data.length === 0) {
-    alert("No data to download");
-    showStatus("");
-    return;
-  }
-
-  // Create Header Rows (matching exact formatting)
-  const headerRow1 = [
-    "Sr No", "Joblist", "Dwng No", "Quantity", "Material", "Wt", 
-    "Assembly Name", "Vendor Name", "PO Number", "Unit Price", "Total Price", 
-    "Release of PO", "", "Ready for Assembly", ""
-  ];
-  const headerRow2 = [
-    "", "", "", "", "", "", "", "", "", "", "", 
-    "Status", "Date", "Status", "Date"
-  ];
-
-  const exportData = [headerRow1, headerRow2];
-
-  data.forEach(dbRow => {
-    const row = [];
-    EXCEL_COLS.forEach(colName => {
-      row.push(dbRow[colName] !== undefined ? dbRow[colName] : "");
-    });
-    exportData.push(row);
-  });
-
-  const ws = XLSX.utils.aoa_to_sheet(exportData);
-
-  // Merges for header
-  ws['!merges'] = [
-    { s: { r: 0, c: 11 }, e: { r: 0, c: 12 } }, // Release of PO
-    { s: { r: 0, c: 13 }, e: { r: 0, c: 14 } }  // Ready for Assembly
-  ];
-
-  const wb = XLSX.utils.book_new();
-  const assemblyName = (data[0] && data[0]["Assembly Name"]) || 'HOLD DOWN ROLL ASSY';
-  const safeSheetName = assemblyName.substring(0, 31).replace(/[\\/*?:\[\]]/g, '');
-  XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
-  
-  XLSX.writeFile(wb, `${assemblyName}_BOM.xlsx`);
-  showStatus("Downloaded", 3000);
-}
-
-// --- Custom Paste (Ctrl+V) ---
-function handleCustomPaste(e) {
-  const clipboardData = e.clipboardData || window.clipboardData;
-  const pastedText = clipboardData.getData('Text');
-  if (!pastedText) return;
-  e.preventDefault();
-
-  const focusedCell = gridApi.getFocusedCell();
-  if (!focusedCell) return;
-
-  const startRowIndex = focusedCell.rowIndex;
-  const startColId = focusedCell.column.getId();
-  
-  const columns = gridOptions.columnApi ? gridOptions.columnApi.getAllDisplayedColumns() : gridApi.getAllDisplayedColumns();
-  const startColIndex = columns.findIndex(c => c.getColId() === startColId);
-
-  const rows = pastedText.split(/\r?\n/);
-  
-  const rowNodes = [];
-  gridApi.forEachNode((node) => { rowNodes.push(node); });
-
-  rows.forEach((rowText, i) => {
-    if (!rowText.trim() && i === rows.length - 1) return; // Skip last empty line
-    const cells = rowText.split('\t');
-    const targetRowIndex = startRowIndex + i;
-    
-    let rowNode = rowNodes[targetRowIndex];
-    
-    // If pasting beyond current rows, add new row
-    if (!rowNode) {
-      const newGridRow = {
-        _excel_row_index: targetRowIndex + 1
-      };
-      const res = gridApi.applyTransaction({ add: [newGridRow] });
-      rowNode = res.add[0];
-      rowNodes.push(rowNode);
-    }
-
-    cells.forEach((cellText, j) => {
-      const targetColIndex = startColIndex + j;
-      if (targetColIndex < columns.length) {
-        const colId = columns[targetColIndex].getColId();
-        rowNode.setDataValue(colId, cellText.trim());
+      const { data, error } = await sb.from('bom_items').upsert([dbRecord]).select();
+      if (error) {
+        showStatus("Save Failed", 5000);
+      } else {
+        if (!gridRow._db_id && data && data.length > 0) gridRow._db_id = data[0].id;
+        showStatus("Saved ✓");
       }
-    });
-  });
-
-  // Recalculate row indices after paste
-  gridApi.forEachNode((node, index) => {
-    node.data._excel_row_index = index + 1;
-  });
-}
-
-// --- UI Mutation Capabilities ---
-
-async function createProject() {
-  const name = prompt("Project Name");
-  if (!name) return;
-
-  const code = prompt("Project Code (e.g. 2533)");
-  if (!code) return;
-
-  const id = code + "_" + Date.now();
-
-  showStatus("Creating project...");
-  const { error } = await sb.from('projects').insert([{
-    id: id,
-    project_code: code,
-    name: name,
-    plan_status: 'Checked In',
-    state: 'In Process'
-  }]);
-
-  if (!error) {
-    await createBaseStructure(id);
-    alert("Project created and base structure initialized");
-    loadProjects();
-  } else {
-    alert("Error creating project: " + error.message);
-  }
-}
-
-async function createBaseStructure(projectId) {
-  const phases = ["Engineering", "Ordering & Manufacturing", "Assembly", "Dispatch"];
-  const categories = ["0", "1", "2", "3/4", "5"];
-  let sort = 1;
-  const rows = [];
-
-  categories.forEach(cat => {
-    phases.forEach(phase => {
-      rows.push({
-        project_id: projectId,
-        type: "TASK",
-        category: cat,
-        phase: phase,
-        name: `Category ${cat} - ${phase}`,
-        task_id: null,
-        sort_order: sort++
-      });
-    });
-  });
-
-  await sb.from('assemblies').insert(rows);
-}
-
-async function addAssembly() {
-  const name = prompt("Assembly Name");
-  if (!name) return;
-
-  const taskId = prompt("Task ID (e.g. 51)");
-  const category = prompt("Category (0-5)");
-  if (!["0","1","2","3/4","5"].includes(category)) {
-    alert("Invalid category");
-    return;
-  }
-  
-  let phase = prompt("Phase (e.g. Ordering & Manufacturing)", "Ordering & Manufacturing");
-  if (!phase) phase = "Ordering & Manufacturing";
-
-  const projectId = ctx.projectId;
-
-  showStatus("Adding assembly...");
-
-  const { data } = await sb
-    .from('assemblies')
-    .select('internal_id')
-    .eq('project_id', projectId)
-    .eq('type', 'SUBTASK');
-
-  let nextId = 1;
-  if (data && data.length > 0) {
-    const maxSibling = data.reduce((max, s) => {
-      const val = parseInt(s.internal_id.split('.')[0]);
-      return (!isNaN(val) && val > max) ? val : max;
-    }, 0);
-    nextId = maxSibling + 1;
-  }
-  const baseId = nextId.toString();
-  
-  // SUBTASK
-  await sb.from('assemblies').insert([{
-    project_id: projectId,
-    internal_id: baseId + ".1",
-    task_id: taskId,
-    name: name,
-    type: "SUBTASK",
-    category: category,
-    phase: phase,
-    sort_order: Date.now()
-  }]);
-
-  // STEPS
-  await sb.from('assemblies').insert([
-    {
-      project_id: projectId,
-      internal_id: baseId + ".1.1",
-      task_id: taskId,
-      name: "Release of PO",
-      type: "step",
-      category: category,
-      phase: phase
-    },
-    {
-      project_id: projectId,
-      internal_id: baseId + ".1.2",
-      task_id: taskId,
-      name: "Ready for Assembly",
-      type: "step",
-      category: category,
-      phase: phase
     }
-  ]);
 
-  showStatus("Assembly added");
-  loadTree(projectId);
-}
-
-function enableEdit(el, event) {
-  if (event) event.stopPropagation();
-  const target = el.querySelector('.edit-target');
-  if (!target) return;
-  
-  const original = target.innerText;
-
-  target.setAttribute("contenteditable", "true");
-  target.focus();
-
-  // Move cursor to end
-  const sel = document.getSelection();
-  sel.removeAllRanges();
-  const range = document.createRange();
-  range.selectNodeContents(target);
-  range.collapse(false);
-  sel.addRange(range);
-
-  target.onblur = () => saveNodeEdit(target, original, el.dataset.id);
-  target.onkeydown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      target.blur();
+    function createEmptyBom() {
+      if (!confirm("Create empty BOM?")) return;
+      const rows = [];
+      for (let i = 1; i <= 25; i++) {
+        const r = { _excel_row_index: i };
+        EXCEL_COLS.forEach(c => r[c] = "");
+        r["Sr No"] = i;
+        rows.push(r);
+      }
+      gridApi.setGridOption('rowData', rows);
     }
-    if (e.key === "Escape") {
-      target.innerText = original;
-      target.blur();
+
+    function downloadExcel() {
+      const data = gridOptions.rowData;
+      if (!data || data.length === 0) return alert("No data to export");
+      const worksheet = XLSX.utils.json_to_sheet(data.map(r => {
+        const exportRow = {};
+        EXCEL_COLS.forEach(col => exportRow[col] = r[col]);
+        return exportRow;
+      }));
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "BOM");
+      XLSX.writeFile(workbook, `BOM_${ctx.assemblyId || 'export'}.xlsx`);
     }
-  };
-}
 
-async function saveNodeEdit(target, original, internalId) {
-  target.removeAttribute("contenteditable");
-
-  const newName = target.innerText.trim();
-  if (!newName || newName === original) {
-    target.innerText = original;
-    return;
-  }
-
-  showStatus("Saving...");
-
-  const { error } = await sb
-    .from('assemblies')
-    .update({ name: newName })
-    .eq('project_id', ctx.projectId)
-    .eq('internal_id', internalId);
-
-  if (error) {
-    console.error(error);
-    target.innerText = original;
-    showStatus("Save failed", 3000);
-  } else {
-    showStatus("Updated ✓", 2000);
-    // Update click attributes so next selection holds right context
-    const parentEl = target.closest('.editable-node');
-    if (parentEl) {
-       const projectId = parentEl.dataset.project;
-       const taskId = parentEl.dataset.task;
-       parentEl.setAttribute('onclick', `selectAssembly('${projectId}','${taskId}','${internalId}','${newName.replace(/'/g, "\\'")}', this)`);
-       
-       if (parentEl.classList.contains('active')) {
-         document.getElementById('bom-title').innerText = `BOM View - ${newName}`;
-       }
+    function handleUpload(event) {
+      const file = event.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet);
+        
+        const gridRows = rows.map((r, idx) => {
+          const gridRow = { _excel_row_index: idx + 1 };
+          EXCEL_COLS.forEach(col => gridRow[col] = r[col] || "");
+          return gridRow;
+        });
+        gridApi.setGridOption('rowData', gridRows);
+        showStatus("Imported. Save rows manually.", 5000);
+      };
+      reader.readAsArrayBuffer(file);
     }
-  }
-}
 
-async function deleteAssembly(event, internalId) {
-  event.stopPropagation();
-  if (!confirm(`Are you sure you want to delete assembly ${internalId} and all its steps?`)) return;
+    async function handlePlanningUpload(event) {
+      alert("WBS Upload initiated. Logic to parse and save to 'assemblies' table goes here.");
+    }
 
-  showStatus("Deleting...");
-  
-  const { error } = await sb
-    .from('assemblies')
-    .delete()
-    .eq('project_id', ctx.projectId)
-    .like('internal_id', `${internalId}%`);
-
-  if (error) {
-    console.error(error);
-    showStatus("Delete failed", 3000);
-  } else {
-    showStatus("Deleted ✓", 2000);
-    loadTree(ctx.projectId);
-  }
-}
-
-async function duplicateAssembly(event, internalId) {
-  event.stopPropagation();
-  
-  showStatus("Duplicating...");
-
-  // 1. Fetch subtree
-  const { data, error } = await sb
-    .from('assemblies')
-    .select('*')
-    .eq('project_id', ctx.projectId)
-    .like('internal_id', `${internalId}%`)
-    .order('internal_id');
-
-  if (error || !data || data.length === 0) {
-    showStatus("Duplicate failed", 3000);
-    return;
-  }
-
-  // 2. Determine new base ID
-  const { data: siblings } = await sb
-    .from('assemblies')
-    .select('internal_id')
-    .eq('project_id', ctx.projectId)
-    .eq('type', 'SUBTASK');
-
-  let nextId = 1;
-  if (siblings && siblings.length > 0) {
-     const maxSibling = siblings.reduce((max, s) => {
-        const val = parseInt(s.internal_id.split('.')[0]);
-        return (!isNaN(val) && val > max) ? val : max;
-     }, 0);
-     nextId = maxSibling + 1;
-  }
-  
-  const oldBasePrefix = internalId; // e.g. "4.1"
-  const newBasePrefix = nextId.toString() + ".1";
-  
-  const newRows = data.map(row => {
-     const newRow = { ...row };
-     delete newRow.id;
-     delete newRow.created_at;
-     
-     if (newRow.internal_id === oldBasePrefix) {
-        newRow.internal_id = newBasePrefix;
-        newRow.name = newRow.name + " (Copy)";
-     } else if (newRow.internal_id.startsWith(oldBasePrefix + ".")) {
-        newRow.internal_id = newRow.internal_id.replace(oldBasePrefix, newBasePrefix);
-     }
-     
-     newRow.sort_order = Date.now() + Math.random() * 1000;
-     return newRow;
-  });
-
-  const { error: insErr } = await sb.from('assemblies').insert(newRows);
-  if (insErr) {
-    console.error(insErr);
-    showStatus("Duplicate failed", 3000);
-  } else {
-    showStatus("Duplicated ✓", 2000);
-    loadTree(ctx.projectId);
-  }
-}
-</script>
+    async function createProject() {
+      const name = prompt("Enter Project Name:");
+      if (!name) return;
+      const id = prompt("Enter Project ID/Code:");
+      if (!id) return;
+      
+      const { error } = await sb.from('projects').insert([{ id, project_code: id, name, division: 'DEFAULT', manager: 'SYSTEM', plan_status: 'New', labels: 'General', state: 'Active' }]);
+      if (error) alert(error.message);
+      else loadProjects();
+    }
+  </script>
 </body>
 </html>
