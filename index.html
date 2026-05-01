@@ -37,97 +37,259 @@
   </header>
 
   <div class="main-wrapper">
-    <aside class="sidebar">
-      <div class="sidebar-header" style="padding: 20px; border-bottom: 1px solid var(--glass-border);">
-        <button class="btn-premium btn-primary w-100" id="btn-projects-nav" onclick="showProjects()">
-          <i class="fas fa-th-large"></i> DASHBOARD
+    <aside class="sidebar" id="app-sidebar">
+      <div class="sidebar-header">
+        <button class="icon-button sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar" title="Toggle sidebar">
+          <i class="fas fa-bars"></i>
         </button>
+        <div class="sidebar-brand nav-label">
+          <span>Operate</span>
+          <small>Project OS</small>
+        </div>
       </div>
+
+      <nav class="primary-nav" aria-label="Main navigation">
+        <button class="nav-link active" id="nav-planning" onclick="showPlanning()">
+          <i class="fas fa-calendar-check"></i>
+          <span class="nav-label">Planning</span>
+        </button>
+        <button class="nav-link" id="nav-task" onclick="showTask()">
+          <i class="fas fa-list-check"></i>
+          <span class="nav-label">Task</span>
+        </button>
+      </nav>
       
-      <div id="tree-container" style="flex: 1; overflow-y: auto; padding-top: 15px; display: none;">
-        <div class="nav-section-title" style="padding: 0 20px 10px; font-size: 11px; font-weight: 700; color: #999; text-transform: uppercase;">Structure (WBS)</div>
+      <div id="tree-container" class="task-tree">
+        <div class="nav-section-title">Structure (WBS)</div>
         <div id="assembly-tree" class="tree">
           <!-- Populated by JS -->
         </div>
       </div>
 
-      <div class="sidebar-footer" style="padding: 20px; border-top: 1px solid var(--glass-border);">
+      <div class="sidebar-footer">
         <div class="status-indicator">
-          <span id="save-status" class="status-text" style="font-size: 12px; font-weight: 500; color: var(--primary);"></span>
+          <span id="save-status" class="status-text"></span>
         </div>
       </div>
     </aside>
 
     <main class="content-area">
-      <!-- PROJECTS SCREEN -->
-      <section id="screen-projects" class="animate-fade">
-        <div class="d-flex justify-content-between align-items-center mb-4" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
-          <h2 style="margin: 0; color: var(--primary); font-weight: 700;">Projects Workspace</h2>
-          <button class="btn-premium btn-primary" onclick="createProject()">
-            <i class="fas fa-plus"></i> NEW PROJECT
+      <!-- PLANNING SCREEN -->
+      <section id="screen-planning" class="animate-fade">
+        <div class="screen-heading">
+          <div>
+            <p class="screen-kicker">Planning</p>
+            <h2>Projects</h2>
+          </div>
+          <button class="btn-premium btn-primary" onclick="openCreateProjectModal()">
+            <i class="fas fa-plus"></i> Create Project
+          </button>
+        </div>
+
+        <div class="planning-options" aria-label="Planning options">
+          <button class="planning-option" onclick="openCreateProjectModal()">
+            <i class="fas fa-folder-plus"></i>
+            <span>Create Project</span>
+          </button>
+          <button class="planning-option" onclick="scrollToProjectList()">
+            <i class="fas fa-table-list"></i>
+            <span>List of Projects</span>
           </button>
         </div>
         
-        <div class="glass-card">
-          <table class="premium-table">
-            <thead>
-              <tr>
-                <th>Project Details</th>
-                <th>Division</th>
-                <th>Manager</th>
-                <th>Plan Status</th>
-                <th>Labels</th>
-                <th>State</th>
-                <th>Timeline</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody id="projects-tbody">
-              <!-- Filled by JS -->
-            </tbody>
-          </table>
+        <div class="table-panel" id="project-list-panel">
+          <div class="project-list-header">
+            <h3>List of Projects</h3>
+            <span id="project-count">0 projects</span>
+          </div>
+          <div class="project-table-wrap">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Division</th>
+                  <th>Manager</th>
+                  <th>Plan Status</th>
+                  <th>Labels</th>
+                  <th>State</th>
+                  <th>Start Dt.</th>
+                  <th>Due Dt.</th>
+                  <th>Proj. Dt.</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="projects-tbody">
+                <!-- Filled by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- TASK EMPTY SCREEN -->
+      <section id="screen-task-empty" style="display: none;" class="animate-fade">
+        <div class="empty-state">
+          <i class="fas fa-list-check"></i>
+          <h2>Task Workspace</h2>
+          <p>Select a project from Planning to open its WBS, assemblies, and BOM task data.</p>
+          <button class="btn-premium btn-primary" onclick="showPlanning()">
+            <i class="fas fa-calendar-check"></i> Open Planning
+          </button>
         </div>
       </section>
 
       <!-- WORKSPACE SCREEN -->
       <section id="screen-workspace" style="display: none;" class="animate-fade">
-        <div class="workspace-header mb-4" style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 25px;">
-          <div class="d-flex align-items-center gap-3" style="display: flex; align-items: center; gap: 15px;">
-            <button class="btn-premium" onclick="showProjects()" style="background: white; border: 1px solid #ddd;">
-              <i class="fas fa-arrow-left"></i> BACK
+        <div class="workspace-header">
+          <div class="workspace-title-group">
+            <button class="btn-premium btn-light" onclick="showPlanning()">
+              <i class="fas fa-arrow-left"></i> Planning
             </button>
-            <h3 id="workspace-title" style="margin: 0; color: var(--primary); font-weight: 700;">Project Workspace</h3>
+            <h3 id="workspace-title">Project Workspace</h3>
           </div>
           
-          <div class="actions-group" style="display: flex; gap: 10px;">
+          <div class="actions-group">
             <button class="btn-premium btn-primary" onclick="document.getElementById('upload-planning').click()">
-              <i class="fas fa-file-upload"></i> UPLOAD WBS
+              <i class="fas fa-file-upload"></i> Upload WBS
             </button>
             <input type="file" id="upload-planning" accept=".xlsx, .xls" style="display:none;" onchange="handlePlanningUpload(event)">
             
-            <button class="btn-premium" style="background: #20c997; color: white;" onclick="createEmptyBom()">
-              <i class="fas fa-plus-square"></i> NEW BOM
+            <button class="btn-premium btn-success" onclick="createEmptyBom()">
+              <i class="fas fa-plus-square"></i> New BOM
             </button>
             
-            <button class="btn-premium" style="background: #0dcaf0; color: white;" onclick="document.getElementById('upload-excel').click()">
-              <i class="fas fa-file-excel"></i> IMPORT BOM
+            <button class="btn-premium btn-info" onclick="document.getElementById('upload-excel').click()">
+              <i class="fas fa-file-excel"></i> Import BOM
             </button>
             <input type="file" id="upload-excel" accept=".xlsx, .xls" style="display:none;" onchange="handleUpload(event)">
             
-            <button class="btn-premium" style="background: white; border: 1px solid #ddd;" onclick="downloadExcel()">
-              <i class="fas fa-download"></i> EXPORT
+            <button class="btn-premium btn-light" onclick="downloadExcel()">
+              <i class="fas fa-download"></i> Export
             </button>
           </div>
         </div>
 
-        <div class="glass-card" style="padding: 0; overflow: hidden; height: 65vh; display: flex; flex-direction: column;">
-          <div id="bom-title-bar" style="padding: 15px 20px; background: white; border-bottom: 1px solid #eee; font-weight: 600; color: var(--primary);">
-            <i class="fas fa-table me-2"></i> <span id="bom-title">BOM View - Select an Assembly</span>
+        <div class="workspace-panel">
+          <div id="bom-title-bar">
+            <i class="fas fa-table"></i> <span id="bom-title">BOM View - Select an Assembly</span>
           </div>
-          <div id="myGrid" class="ag-theme-alpine" style="flex: 1;"></div>
+          <div id="myGrid" class="ag-theme-alpine"></div>
         </div>
       </section>
     </main>
+  </div>
+
+  <div class="modal-backdrop" id="project-modal" aria-hidden="true">
+    <div class="project-dialog" role="dialog" aria-modal="true" aria-labelledby="project-modal-title">
+      <div class="modal-titlebar">
+        <h3 id="project-modal-title">Create Project</h3>
+        <button class="icon-button" type="button" onclick="closeCreateProjectModal()" aria-label="Close create project">
+          <i class="fas fa-xmark"></i>
+        </button>
+      </div>
+
+      <form id="project-form" class="project-form" onsubmit="submitProject(event)">
+        <div class="form-field field-wide">
+          <label for="project-name">Project Name <span>*</span></label>
+          <input id="project-name" name="project_name" type="text" placeholder="Name your project" required>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-field">
+            <label for="planned-start">Planned Start <span>*</span></label>
+            <input id="planned-start" name="planned_start" type="date" required>
+          </div>
+          <div class="form-field">
+            <label for="due-date">Due Date <span>*</span></label>
+            <input id="due-date" name="due_date" type="date" required>
+          </div>
+          <div class="form-field">
+            <label for="division">Division <span>*</span></label>
+            <select id="division" name="division" required>
+              <option value="DEFAULT">DEFAULT</option>
+              <option value="CGL">CGL</option>
+              <option value="APL">APL</option>
+              <option value="PICKLING">PICKLING</option>
+              <option value="6HI">6HI</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="calendar">Calendar</label>
+            <select id="calendar" name="calendar">
+              <option value="">Choose Calendar</option>
+              <option value="Standard">Standard</option>
+              <option value="Manufacturing">Manufacturing</option>
+              <option value="Site">Site</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-field field-wide">
+          <label for="label">Label</label>
+          <select id="label" name="label">
+            <option value="">Select Label...</option>
+            <option value="CGL">CGL</option>
+            <option value="Rewi">Rewi</option>
+            <option value="Pick">Pick</option>
+            <option value="APL">APL</option>
+            <option value="6HI">6HI</option>
+            <option value="Spar">Spar</option>
+          </select>
+        </div>
+
+        <div class="form-field field-wide">
+          <label for="manager">Manager <span>*</span></label>
+          <input id="manager" name="manager" type="text" placeholder="Choose Manager" required>
+        </div>
+
+        <div class="form-field field-wide">
+          <label for="additional-manager">Additional Manager</label>
+          <input id="additional-manager" name="additional_manager" type="text" placeholder="Choose Addl. Manager">
+        </div>
+
+        <div class="form-field field-wide">
+          <label for="planner">Planner</label>
+          <input id="planner" name="planner" type="text" placeholder="Choose Planner">
+        </div>
+
+        <div class="form-field field-wide">
+          <label for="dashboard-users">Dashboard Privilege</label>
+          <input id="dashboard-users" name="dashboard_users" type="text" placeholder="Choose users">
+        </div>
+
+        <div class="form-field field-wide">
+          <label for="project-description">Description</label>
+          <textarea id="project-description" name="description" rows="4" placeholder="Project Description"></textarea>
+        </div>
+
+        <div class="upload-row field-wide">
+          <div>
+            <label>Upload Project File</label>
+            <div class="file-switch">
+              <label class="file-pill">
+                <i class="fas fa-file-lines"></i>
+                Project File (.sl)
+                <input type="file" name="project_file" accept=".sl" hidden>
+              </label>
+              <label class="file-pill">
+                <i class="fas fa-file-excel"></i>
+                Excel File (.xlsx)
+                <input type="file" name="excel_file" accept=".xlsx,.xls" hidden>
+              </label>
+            </div>
+          </div>
+          <button class="icon-button upload-icon" type="button" onclick="document.querySelector('input[name=project_file]').click()" aria-label="Upload project file">
+            <i class="fas fa-upload"></i>
+          </button>
+        </div>
+
+        <div class="modal-actions field-wide">
+          <button class="btn-premium btn-light" type="button" onclick="closeCreateProjectModal()">Cancel</button>
+          <button class="btn-premium btn-primary" type="submit" name="action" value="save">Save</button>
+          <button class="btn-premium btn-primary" type="submit" name="action" value="plan">Save & Create Plan</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <footer class="app-footer">
@@ -190,36 +352,80 @@
     document.addEventListener("DOMContentLoaded", () => {
       const gridDiv = document.querySelector('#myGrid');
       gridApi = agGrid.createGrid(gridDiv, gridOptions);
+      setProjectDateDefaults();
+      document.getElementById('project-modal').addEventListener('click', (event) => {
+        if (event.target.id === 'project-modal') closeCreateProjectModal();
+      });
       
-      // Load initial Data
       ctx.projectId = localStorage.getItem("projectId") || '';
-      if (ctx.projectId) {
-        showWorkspace(ctx.projectId);
-      } else {
-        loadProjects();
-      }
+      showPlanning();
     });
 
-    function showProjects() {
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    function jsString(value) {
+      return String(value ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function toggleSidebar() {
+      document.getElementById('app-sidebar').classList.toggle('is-collapsed');
+    }
+
+    function setActiveNav(mode) {
+      document.getElementById('nav-planning').classList.toggle('active', mode === 'planning');
+      document.getElementById('nav-task').classList.toggle('active', mode === 'task');
+    }
+
+    function showPlanning() {
+      document.getElementById('screen-planning').style.display = 'block';
+      document.getElementById('screen-task-empty').style.display = 'none';
       document.getElementById('screen-workspace').style.display = 'none';
-      document.getElementById('screen-projects').style.display = 'block';
-      document.getElementById('tree-container').style.display = 'none';
-      document.getElementById('btn-projects-nav').classList.add('active');
-      localStorage.removeItem("projectId");
+      document.getElementById('tree-container').classList.remove('is-visible');
+      setActiveNav('planning');
       loadProjects();
     }
 
+    function showProjects() {
+      showPlanning();
+    }
+
+    function showTask() {
+      const projectId = ctx.projectId || localStorage.getItem("projectId") || '';
+      if (projectId) {
+        showWorkspace(projectId);
+        return;
+      }
+
+      document.getElementById('screen-planning').style.display = 'none';
+      document.getElementById('screen-task-empty').style.display = 'block';
+      document.getElementById('screen-workspace').style.display = 'none';
+      document.getElementById('tree-container').classList.remove('is-visible');
+      setActiveNav('task');
+    }
+
     function showWorkspace(projectId) {
-      document.getElementById('screen-projects').style.display = 'none';
+      document.getElementById('screen-planning').style.display = 'none';
+      document.getElementById('screen-task-empty').style.display = 'none';
       document.getElementById('screen-workspace').style.display = 'block';
-      document.getElementById('tree-container').style.display = 'block';
-      document.getElementById('btn-projects-nav').classList.remove('active');
+      document.getElementById('tree-container').classList.add('is-visible');
+      setActiveNav('task');
       
       ctx.projectId = projectId;
       localStorage.setItem("projectId", projectId);
       
       loadTree(projectId);
       updateWorkspaceTitle(projectId);
+    }
+
+    function scrollToProjectList() {
+      document.getElementById('project-list-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     async function updateWorkspaceTitle(projectId) {
@@ -231,7 +437,7 @@
 
     async function loadTree(projectId) {
       const treeContainer = document.getElementById('assembly-tree');
-      treeContainer.innerHTML = '<div style="padding:20px; color:#999; font-size:12px;"><i class="fas fa-spinner fa-spin me-2"></i>Loading WBS...</div>';
+      treeContainer.innerHTML = '<div class="tree-message"><i class="fas fa-spinner fa-spin"></i> Loading WBS...</div>';
       
       const { data, error } = await sb.from('assemblies')
         .select('*')
@@ -239,7 +445,7 @@
         .order('sort_order', { ascending: true });
         
       if (error || !data || data.length === 0) {
-        treeContainer.innerHTML = '<div style="padding:20px; color:#999; font-size:12px;">No hierarchy found.</div>';
+        treeContainer.innerHTML = '<div class="tree-message">No hierarchy found.</div>';
         return;
       }
 
@@ -251,7 +457,7 @@
         const type = (a.type || '').toUpperCase();
         
         if (a.category && a.category !== currentCat) {
-          html += `<div class="nav-section-title" style="padding: 15px 20px 5px; font-size: 10px; color: var(--secondary); opacity: 0.8; font-weight: 700;">CAT: ${a.category}</div>`;
+          html += `<div class="nav-section-title nav-section-subtitle">CAT: ${escapeHtml(a.category)}</div>`;
           currentCat = a.category;
           currentPhase = null;
         }
@@ -259,19 +465,19 @@
         if (type === 'TASK' || (a.phase && a.phase !== currentPhase)) {
            const phaseName = a.phase || 'General Phase';
            if (phaseName !== currentPhase) {
-             html += `<div style="padding: 8px 20px; font-weight: 600; font-size: 12px; color: var(--primary);"><i class="fas fa-layer-group me-2"></i>${phaseName}</div>`;
+             html += `<div class="tree-phase"><i class="fas fa-layer-group"></i>${escapeHtml(phaseName)}</div>`;
              currentPhase = phaseName;
            }
         }
 
         if (type === 'SUBTASK' || type === 'STEP') {
           const icon = type === 'SUBTASK' ? 'fa-project-diagram' : 'fa-cog';
+          const assemblyName = a.name || 'Untitled Assembly';
           html += `
             <div class="tree-node ${ctx.assemblyId === a.internal_id ? 'active' : ''}" 
-                 style="margin-left: 15px;"
-                 onclick="selectAssembly('${projectId}','${a.task_id}','${a.internal_id}','${a.name.replace(/'/g, "\\'")}', this)">
-              <i class="fas ${icon}" style="width: 16px; font-size: 12px;"></i>
-              <span class="text-truncate" style="font-size: 13px;">${a.name}</span>
+                 onclick="selectAssembly('${jsString(projectId)}','${jsString(a.task_id)}','${jsString(a.internal_id)}','${jsString(assemblyName)}', this)">
+              <i class="fas ${icon}"></i>
+              <span class="text-truncate">${escapeHtml(assemblyName)}</span>
             </div>
           `;
         }
@@ -286,37 +492,88 @@
       renderProjects(data || []);
     }
 
+    function getInitials(name) {
+      const initials = String(name || 'NA')
+        .split(/\s+/)
+        .filter(Boolean)
+        .map(part => part[0])
+        .join('')
+        .slice(0, 2)
+        .toUpperCase();
+      return initials || 'NA';
+    }
+
+    function formatDisplayDate(value) {
+      if (!value) return '';
+      let parsed;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        const [year, month, day] = value.split('-').map(Number);
+        parsed = new Date(year, month - 1, day);
+      } else {
+        parsed = new Date(value);
+      }
+      if (Number.isNaN(parsed.getTime())) return value;
+      return parsed.toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: '2-digit'
+      }).replace(/ /g, '-');
+    }
+
     function renderProjects(projects) {
       const tbody = document.getElementById('projects-tbody');
+      document.getElementById('project-count').innerText = `${projects.length} ${projects.length === 1 ? 'project' : 'projects'}`;
+
+      if (!projects.length) {
+        tbody.innerHTML = `
+          <tr class="empty-row">
+            <td colspan="10">No projects found.</td>
+          </tr>
+        `;
+        return;
+      }
+
       let html = '';
       
       projects.forEach(p => {
         const planClass = (p.plan_status || '').toLowerCase().includes('checked') ? 'badge-success' : 'badge-primary';
         const stateClass = (p.state || '').toLowerCase().includes('process') ? 'badge-warning' : 'badge-primary';
+        const manager = p.manager || 'Unassigned';
+        const projectId = p.id || p.project_code || '';
+        const label = p.labels || '';
         
         html += `
-          <tr onclick="showWorkspace('${p.id}')">
-            <td>
-              <div style="font-weight: 700; color: var(--primary);">${p.project_code || p.id}</div>
-              <div style="font-size: 12px; color: #666;">${p.name || ''}</div>
-            </td>
-            <td>${p.division || 'DEFAULT'}</td>
-            <td>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <div style="width: 28px; height: 28px; border-radius: 50%; background: #eee; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: var(--primary);">
-                  ${(p.manager || '??').split(' ').map(n=>n[0]).join('')}
-                </div>
-                ${p.manager || ''}
+          <tr onclick="showWorkspace('${jsString(projectId)}')">
+            <td class="project-name-cell">
+              <span class="project-dot"></span>
+              <div>
+                <div class="project-code">${escapeHtml(p.project_code || projectId)}</div>
+                <div class="project-name">${escapeHtml(p.name || '')}</div>
               </div>
             </td>
-            <td><span class="badge ${planClass}">${p.plan_status || ''}</span></td>
-            <td><span class="badge badge-primary">${p.labels || ''}</span></td>
-            <td><span class="badge ${stateClass}">${p.state || ''}</span></td>
-            <td style="font-size: 12px; color: #666;">
-              <div><i class="fas fa-calendar-alt me-1"></i> ${p.start_date || ''}</div>
-              <div><i class="fas fa-flag-checkered me-1"></i> ${p.due_date || ''}</div>
+            <td>${escapeHtml(p.division || 'DEFAULT')}</td>
+            <td>
+              <div class="manager-cell">
+                <div class="avatar">${getInitials(manager)}</div>
+                ${escapeHtml(manager)}
+              </div>
             </td>
-            <td><i class="fas fa-ellipsis-v" style="color: #ccc;"></i></td>
+            <td><span class="badge ${planClass}">${escapeHtml(p.plan_status || 'New')}</span></td>
+            <td>${label ? `<span class="label-chip">${escapeHtml(label)}</span>` : ''}</td>
+            <td>
+              <span class="state-pill ${stateClass}">
+                ${escapeHtml(p.state || 'In Process')}
+                <i class="fas fa-chevron-right"></i>
+              </span>
+            </td>
+            <td>${escapeHtml(formatDisplayDate(p.start_date))}</td>
+            <td>${escapeHtml(formatDisplayDate(p.due_date))}</td>
+            <td>${escapeHtml(formatDisplayDate(p.proj_date))}</td>
+            <td>
+              <button class="row-action" type="button" onclick="event.stopPropagation(); showWorkspace('${jsString(projectId)}')" aria-label="Open project task workspace">
+                <i class="fas fa-ellipsis"></i>
+              </button>
+            </td>
           </tr>
         `;
       });
@@ -343,9 +600,14 @@
       }
     }
 
+    function setGridRows(rows) {
+      gridOptions.rowData = rows;
+      gridApi.setGridOption('rowData', rows);
+    }
+
     async function loadBomData() {
       showStatus("Loading...");
-      gridApi.setGridOption('rowData', []);
+      setGridRows([]);
       
       const { data, error } = await sb
         .from('bom_items')
@@ -365,7 +627,7 @@
         return gridRow;
       });
 
-      gridApi.setGridOption('rowData', rowData);
+      setGridRows(rowData);
       showStatus("Loaded", 2000);
     }
 
@@ -391,7 +653,7 @@
         showStatus("Save Failed", 5000);
       } else {
         if (!gridRow._db_id && data && data.length > 0) gridRow._db_id = data[0].id;
-        showStatus("Saved ✓");
+        showStatus("Saved");
       }
     }
 
@@ -404,7 +666,7 @@
         r["Sr No"] = i;
         rows.push(r);
       }
-      gridApi.setGridOption('rowData', rows);
+      setGridRows(rows);
     }
 
     function downloadExcel() {
@@ -434,7 +696,7 @@
           EXCEL_COLS.forEach(col => gridRow[col] = r[col] || "");
           return gridRow;
         });
-        gridApi.setGridOption('rowData', gridRows);
+        setGridRows(gridRows);
         showStatus("Imported. Save rows manually.", 5000);
       };
       reader.readAsArrayBuffer(file);
@@ -445,14 +707,92 @@
     }
 
     async function createProject() {
-      const name = prompt("Enter Project Name:");
-      if (!name) return;
-      const id = prompt("Enter Project ID/Code:");
-      if (!id) return;
-      
-      const { error } = await sb.from('projects').insert([{ id, project_code: id, name, division: 'DEFAULT', manager: 'SYSTEM', plan_status: 'New', labels: 'General', state: 'Active' }]);
-      if (error) alert(error.message);
-      else loadProjects();
+      openCreateProjectModal();
+    }
+
+    function todayInputValue() {
+      const now = new Date();
+      const local = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+      return local.toISOString().slice(0, 10);
+    }
+
+    function setProjectDateDefaults() {
+      const start = document.getElementById('planned-start');
+      const today = todayInputValue();
+      if (start && !start.value) start.value = today;
+    }
+
+    function openCreateProjectModal() {
+      const form = document.getElementById('project-form');
+      form.reset();
+      setProjectDateDefaults();
+      document.getElementById('project-modal').classList.add('is-open');
+      document.getElementById('project-modal').setAttribute('aria-hidden', 'false');
+      setTimeout(() => document.getElementById('project-name').focus(), 50);
+    }
+
+    function closeCreateProjectModal() {
+      document.getElementById('project-modal').classList.remove('is-open');
+      document.getElementById('project-modal').setAttribute('aria-hidden', 'true');
+    }
+
+    function generateProjectCode(name) {
+      const slug = String(name || 'PROJECT')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 36) || 'PROJECT';
+      return `${slug}-${Date.now().toString().slice(-6)}`;
+    }
+
+    async function submitProject(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const formData = new FormData(form);
+      const name = String(formData.get('project_name') || '').trim();
+      const manager = String(formData.get('manager') || '').trim();
+
+      if (!name || !manager) {
+        alert('Project Name and Manager are required.');
+        return;
+      }
+
+      const projectCode = generateProjectCode(name);
+      const record = {
+        id: projectCode,
+        project_code: projectCode,
+        name,
+        division: formData.get('division') || 'DEFAULT',
+        manager,
+        plan_status: 'Checked In',
+        labels: formData.get('label') || '',
+        state: 'In Process',
+        start_date: formData.get('planned_start') || '',
+        due_date: formData.get('due_date') || '',
+        proj_date: todayInputValue()
+      };
+
+      const buttons = form.querySelectorAll('button');
+      buttons.forEach(button => button.disabled = true);
+      showStatus('Saving project...', 0);
+
+      const { error } = await sb.from('projects').insert([record]);
+      buttons.forEach(button => button.disabled = false);
+
+      if (error) {
+        showStatus('Project save failed', 5000);
+        alert(error.message);
+        return;
+      }
+
+      closeCreateProjectModal();
+      showStatus('Project saved');
+
+      if (event.submitter && event.submitter.value === 'plan') {
+        showWorkspace(record.id);
+      } else {
+        showPlanning();
+      }
     }
   </script>
 </body>
